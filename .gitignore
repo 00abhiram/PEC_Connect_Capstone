@@ -1,0 +1,12 @@
+# Ignore Virtual Environment
+venv/
+.venv/
+env/
+
+# Ignore Private API Key
+.streamlit/secrets.toml
+
+# Ignore Database and Cache
+pec_data.db
+__pycache__/
+*.pyc
