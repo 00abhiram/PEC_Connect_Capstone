@@ -217,7 +217,7 @@ if "user" not in st.session_state:
             tab1, tab2 = st.tabs(["🔒 Secure Login", "📝 Register"])
             
             with tab1:
-                u = st.text_input("Username", key="l_u", placeholder="Enter Roll Number")
+                u = st.text_input("Username", key="l_u", placeholder="Enter your username")
                 p = st.text_input("Password", type="password", key="l_p")
                 
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -234,7 +234,7 @@ if "user" not in st.session_state:
                 c1, c2 = st.columns(2)
                 fullname = c1.text_input("Full Name")
                 email = c2.text_input("Email")
-                nu = st.text_input("Roll Number")
+                nu = st.text_input("Username")
                 np = st.text_input("Set Password", type="password")
                 c_role, c_year = st.columns(2)
                 role = c_role.selectbox("Role", ["Student", "Mentor"])
