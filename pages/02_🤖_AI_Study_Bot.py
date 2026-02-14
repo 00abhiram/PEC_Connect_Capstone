@@ -2,34 +2,68 @@ import streamlit as st
 import google.generativeai as genai
 import time
 from google.api_core import exceptions
+from PIL import Image  # <--- NEW IMPORT
+
+# --- LOAD CUSTOM LOGO ---
+# Even though this file is in "pages/", Streamlit runs from the root,
+# so we can still look for "favicon.png" directly.
+try:
+    favicon = Image.open("favicon.png")
+except FileNotFoundError:
+    favicon = "🤖"  # Fallback emoji
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="AI Tutor | PEC", page_icon="🤖", layout="wide")
+st.set_page_config(
+    page_title="AI Tutor | PEC",
+    page_icon=favicon,  # <--- UPDATED HERE
+    layout="wide"
+)
+
+# ... (Keep the rest of your code exactly the same from here down)
+
+# --- CUSTOM CSS FOR CHAT ---
+st.markdown("""
+<style>
+    .stChatMessage {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+    .stChatMessage[data-testid="stChatMessageUser"] {
+        background-color: #e3f2fd;
+        border-left: 5px solid #2196f3;
+    }
+    .stChatMessage[data-testid="stChatMessageAssistant"] {
+        background-color: #f1f8e9;
+        border-left: 5px solid #4caf50;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🤖 PEC AI 'Fail-to-Pass' Engine")
-st.caption("Your Personal Tutor, Strict Examiner, and Diagram Artist.")
+st.caption("Your Personal Tutor, Strict Examiner, and Diagram Artist (R24 Syllabus).")
 
 # --- CONNECT TO GEMINI ---
 try:
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     else:
-        st.error("⚠️ API Key missing! Check .streamlit/secrets.toml")
-        st.stop()
+        # Fallback if secret not found (useful for local dev if key is pasted directly)
+        # st.warning("⚠️ Using fallback API key setup...") 
+        pass 
 
     # --- MODEL HUNTER FUNCTION ---
     def get_working_model():
-        # Exact list from your working terminal
         candidates = [
             "gemini-2.0-flash-lite-preview-02-05", 
             "gemini-2.0-flash",                     
-            "gemini-2.5-flash",                     
             "gemini-1.5-flash",                     
+            "gemini-1.5-pro",
         ]
         
         for model_name in candidates:
             try:
-                # Add 'models/' prefix safely
-                full_name = f"models/{model_name}" if "models/" not in model_name else model_name
                 test_model = genai.GenerativeModel(model_name)
                 test_model.generate_content("test")
                 return test_model 
@@ -38,13 +72,13 @@ try:
         return None
 
     if "ai_model" not in st.session_state:
-        with st.spinner("🔄 Syncing with Google Gemini 2.0..."):
+        with st.spinner("🔄 Syncing with Google Gemini..."):
             st.session_state.ai_model = get_working_model()
 
     model = st.session_state.ai_model
 
     if not model:
-        st.error("❌ Could not connect to any Gemini Model. Try waiting 1 minute (Quota Reset).")
+        st.error("❌ Could not connect to Gemini. Please check your API Key or Quota.")
         st.stop()
 
 except Exception as e:
@@ -75,10 +109,23 @@ with st.sidebar:
     st.divider()
     
     st.header("⚙️ Exam Settings")
-    subject = st.selectbox("Current Subject", 
-        ["M1 (Matrices)", "BEE", "Python", "Chemistry", "Data Structures", "OS"])
     
-    # --- RESTORED FEATURE: DAYS LEFT SLIDER ---
+    # --- UPDATED JNTUH R24 SUBJECT LIST ---
+    subject = st.selectbox("Current Subject", [
+        "Matrices and Calculus (M1)",
+        "Ordinary Differential Equations & Vector Calculus (M2)",
+        "Applied Physics",
+        "Engineering Chemistry",
+        "C Programming & Data Structures",
+        "Python Programming",
+        "Computer Aided Engineering Graphics",
+        "Basic Electrical Engineering (BEE)",
+        "Electronic Devices and Circuits",
+        "English for Skill Enhancement",
+        "IT Workshop",
+        "Discrete Mathematics"
+    ])
+    
     days_left = st.slider("Days until Exam?", 1, 30, 3)
     
     # Dynamic Goal Display
@@ -93,29 +140,32 @@ with st.sidebar:
 # MODE 1: CHAT TUTOR
 # ==========================================
 if mode == "💬 Chat Tutor":
-    st.subheader("💬 Concept Explainer")
+    st.subheader(f"💬 {subject} Concept Explainer")
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
         st.session_state.messages.append({"role": "assistant", "content": f"I am your {subject} Tutor. What topic is confusing you?"})
 
+    # Display Chat History
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    if prompt := st.chat_input("Ex: Explain Eigen Values like I'm 5 years old"):
+    if prompt := st.chat_input(f"Ask about {subject}..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.spinner("🤖 Thinking..."):
-            # We add the 'days_left' context to the prompt so AI answers differently!
-            urgency = "EXTREMELY SHORT and SIMPLE (Crash Course style)" if days_left < 2 else "detailed"
+            # Context-Aware Prompt
+            urgency = "EXTREMELY SHORT and SIMPLE (Crash Course style)" if days_left < 2 else "detailed with examples"
             
             full_prompt = f"""
-            Context: Student has {days_left} days before the {subject} exam.
+            Role: Expert Engineering Professor for {subject} (JNTUH R24 Regulation).
+            Context: Student has {days_left} days before the exam.
             Question: '{prompt}'
-            Task: Explain using a real-world analogy. Keep the explanation {urgency}.
+            Task: Explain this concept clearly. Keep the explanation {urgency}. 
+            Use real-world analogies if possible.
             """
             response_text = ask_ai(full_prompt)
             
@@ -144,7 +194,8 @@ elif mode == "📝 Strict Examiner (Grader)":
         else:
             with st.spinner("🔍 Examiner is checking your paper..."):
                 grading_prompt = f"""
-                You are a strict engineering professor. 
+                You are a strict engineering professor grading a JNTUH R24 exam paper. 
+                Subject: {subject}
                 Question: {question}
                 Student Answer: {student_answer}
                 Max Marks: {max_marks}
@@ -152,7 +203,7 @@ elif mode == "📝 Strict Examiner (Grader)":
                 Task:
                 1. Give a score (e.g., 3/{max_marks}).
                 2. List MISSING KEYWORDS that caused mark loss.
-                3. Rewrite the "Perfect 5-Mark Answer".
+                3. Rewrite the "Perfect 5-Mark Answer" exactly how a topper would write it.
                 """
                 response_text = ask_ai(grading_prompt)
                 st.markdown(response_text)
@@ -169,8 +220,9 @@ elif mode == "🎨 Diagram Generator":
     if st.button("✨ Generate Diagram"):
         with st.spinner("🎨 Drawing..."):
             code_prompt = f"""
-            Create a simple Graphviz DOT code for a: {diagram_topic}.
+            Create a simple Graphviz DOT code for a: {diagram_topic} related to {subject}.
             Only output the code inside ```dot ... ``` block. Do not add explanations.
+            Make it professional and easy to read.
             """
             response_text = ask_ai(code_prompt)
             
@@ -180,6 +232,6 @@ elif mode == "🎨 Diagram Generator":
                     st.graphviz_chart(dot_code)
                     st.success(f"Here is the diagram for {diagram_topic}.")
                 else:
-                    st.error("AI couldn't generate a diagram. Try a simpler topic.")
+                    st.error("AI couldn't generate a valid diagram. Try a simpler topic.")
             except:
                 st.error("Error drawing diagram. Please try again.")
