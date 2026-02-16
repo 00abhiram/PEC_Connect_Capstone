@@ -1,136 +1,152 @@
 import streamlit as st
 import database as db
-import pandas as pd
-
-# Initialize DB
-db.init_db()
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Leaderboard | PEC", page_icon="🏆", layout="wide")
+st.set_page_config(page_title="Leaderboard", page_icon="🏆", layout="wide")
+db.init_db()
 
-# --- CUSTOM CSS FOR "PRO" LOOK ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    .big-font { font-size:20px !important; font-weight: bold; }
-    .med-font { font-size:16px !important; color: #555; }
-    .rank-card {
-        padding: 20px;
-        border-radius: 15px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+    
+    .podium-container {
+        display: flex; justify-content: center; align-items: flex-end; gap: 15px;
+        margin-bottom: 50px; padding-top: 20px;
     }
-    .rank-card:hover { transform: scale(1.02); }
-    .gold { background: linear-gradient(135deg, #ffd700 0%, #fdb931 100%); color: black;}
-    .silver { background: linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%); color: black;}
-    .bronze { background: linear-gradient(135deg, #cd7f32 0%, #a05a2c 100%); color: white;}
+    .podium-place {
+        text-align: center; color: white; border-radius: 15px 15px 0 0;
+        padding: 20px; width: 140px; position: relative;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        transition: transform 0.3s ease;
+    }
+    .podium-place:hover { transform: translateY(-10px); }
+    
+    .p-1 { height: 280px; background: linear-gradient(135deg, #FFD700, #FDB931); border: 2px solid #fff; z-index: 2; }
+    .p-2 { height: 200px; background: linear-gradient(135deg, #E0E0E0, #BDBDBD); opacity: 0.9; }
+    .p-3 { height: 160px; background: linear-gradient(135deg, #CD7F32, #A05A2C); opacity: 0.9; }
+    
+    .avatar-circle {
+        width: 80px; height: 80px; border-radius: 50%; border: 4px solid white;
+        object-fit: cover; margin-bottom: 10px; background: white;
+    }
+    .crown { font-size: 40px; position: absolute; top: -30px; left: 50%; transform: translateX(-50%); }
+    
+    .league-badge {
+        padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold;
+        text-transform: uppercase; letter-spacing: 1px; color: white;
+    }
+    .diamond { background: #b9f2ff; color: #0077b6; border: 1px solid #0077b6; }
+    .gold { background: #fff9c4; color: #fbc02d; border: 1px solid #fbc02d; }
+    .silver { background: #f5f5f5; color: #616161; border: 1px solid #9e9e9e; }
+    
+    .list-card {
+        background: white; padding: 15px; border-radius: 12px;
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 10px; border: 1px solid #f0f2f5;
+        transition: all 0.2s;
+    }
+    .list-card:hover { border-color: #3b82f6; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🏆 PEC Hall of Fame")
-st.caption("Recognizing the most active and brilliant minds of Pallavi Engineering College.")
+st.markdown("<h1 style='text-align: center;'>🏆 Champions League</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #64748b;'>Compete with the best minds at PEC</p>", unsafe_allow_html=True)
 
 # --- FETCH DATA ---
 top_students = db.get_leaderboard()
 
+def get_league(points):
+    if points > 1000: return "💎 DIAMOND"
+    elif points > 500: return "🥇 GOLD"
+    elif points > 200: return "🥈 SILVER"
+    return "🥉 BRONZE"
+
 if not top_students:
-    st.info("No data yet. Be the first to take a test!")
+    st.info("No champions yet. Be the first!")
 else:
-    # --- 1. THE WINNER'S PODIUM (Top 3) ---
-    st.markdown("### 🌟 Top Performers")
-    
-    # We need at least 3 users to show a full podium, but code handles fewer
-    col1, col2, col3 = st.columns([1, 1.2, 1]) # Middle column slightly wider for #1
+    # --- 1. THE PODIUM (Top 3 Visuals) ---
+    u1 = top_students[0] if len(top_students) > 0 else None
+    u2 = top_students[1] if len(top_students) > 1 else None
+    u3 = top_students[2] if len(top_students) > 2 else None
 
-    # REORDER: Rank 2 (Left), Rank 1 (Center), Rank 3 (Right)
-    # This is a classic podium layout
+    html_code = '<div class="podium-container">'
     
-    # --- RANK 2 (Silver) ---
-    with col1:
-        if len(top_students) > 1:
-            u2 = top_students[1]
+    # Rank 2
+    if u2:
+        av2 = db.get_avatar_url(u2['username']) # FIX: Use DB helper
+        html_code += f"""
+        <div class="podium-place p-2">
+            <img src="{av2}" class="avatar-circle">
+            <h3>#2</h3>
+            <b>@{u2['username']}</b>
+            <p>{u2['points']} pts</p>
+        </div>"""
+    
+    # Rank 1
+    if u1:
+        av1 = db.get_avatar_url(u1['username']) # FIX: Use DB helper
+        html_code += f"""
+        <div class="podium-place p-1">
+            <div class="crown">👑</div>
+            <img src="{av1}" class="avatar-circle">
+            <h3>#1</h3>
+            <b>@{u1['username']}</b>
+            <p>{u1['points']} pts</p>
+        </div>"""
+        
+    # Rank 3
+    if u3:
+        av3 = db.get_avatar_url(u3['username']) # FIX: Use DB helper
+        html_code += f"""
+        <div class="podium-place p-3">
+            <img src="{av3}" class="avatar-circle">
+            <h3>#3</h3>
+            <b>@{u3['username']}</b>
+            <p>{u3['points']} pts</p>
+        </div>"""
+        
+    html_code += '</div>'
+    st.markdown(html_code, unsafe_allow_html=True)
+
+    # --- 2. THE LEADERBOARD LIST (Rank 4+) ---
+    st.write("---")
+    
+    search = st.text_input("🔍 Find a student...", placeholder="Enter username")
+    filtered_list = [s for s in top_students if search.lower() in s['username'].lower()] if search else top_students
+
+    # Table Header
+    c1, c2, c3, c4 = st.columns([0.5, 3, 2, 1])
+    c1.markdown("**Rank**")
+    c2.markdown("**Student**")
+    c3.markdown("**League**")
+    c4.markdown("**Points**")
+
+    for i, user in enumerate(filtered_list):
+        rank = i + 1
+        is_me = "user" in st.session_state and st.session_state["user"] == user['username']
+        bg_color = "#eff6ff" if is_me else "white"
+        
+        league_name = get_league(user['points'])
+        l_style = "diamond" if "DIAMOND" in league_name else "gold" if "GOLD" in league_name else "silver"
+        
+        # FIX: Get correct avatar for list items
+        list_av = db.get_avatar_url(user['username'])
+
+        with st.container():
             st.markdown(f"""
-            <div class="rank-card silver">
-                <h1>🥈</h1>
-                <img src="https://api.dicebear.com/7.x/identicon/svg?seed={u2[0]}" width="80" style="border-radius:50%">
-                <h3>@{u2[0]}</h3>
-                <p>{u2[1]} Points</p>
-                <small>{u2[2]}</small>
+            <div class="list-card" style="background-color: {bg_color};">
+                <div style="width: 10%; font-weight: bold; font-size: 1.2rem;">#{rank}</div>
+                <div style="width: 40%; display: flex; align-items: center; gap: 10px;">
+                    <img src="{list_av}" style="width: 35px; height: 35px; border-radius: 50%; object-fit: cover;">
+                    <div>
+                        <div style="font-weight: 600;">{user['username']}</div>
+                        <div style="font-size: 0.8rem; color: #64748b;">{user.get('full_name', 'Student')}</div>
+                    </div>
+                </div>
+                <div style="width: 30%;">
+                    <span class="league-badge {l_style}">{league_name}</span>
+                </div>
+                <div style="width: 20%; font-weight: 800; text-align: right; color: #3b82f6;">{user['points']}</div>
             </div>
             """, unsafe_allow_html=True)
-
-    # --- RANK 1 (Gold) ---
-    with col2:
-        if len(top_students) > 0:
-            u1 = top_students[0]
-            st.markdown(f"""
-            <div class="rank-card gold">
-                <h1>👑</h1>
-                <img src="https://api.dicebear.com/7.x/identicon/svg?seed={u1[0]}" width="100" style="border-radius:50%; border: 3px solid white;">
-                <h2 style="margin:0">@{u1[0]}</h2>
-                <p class="big-font">{u1[1]} Points</p>
-                <span style="background:black; color:gold; padding:4px 10px; border-radius:10px; font-size:12px;">PEC CHAMPION</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # --- RANK 3 (Bronze) ---
-    with col3:
-        if len(top_students) > 2:
-            u3 = top_students[2]
-            st.markdown(f"""
-            <div class="rank-card bronze">
-                <h1>🥉</h1>
-                <img src="https://api.dicebear.com/7.x/identicon/svg?seed={u3[0]}" width="80" style="border-radius:50%">
-                <h3>@{u3[0]}</h3>
-                <p>{u3[1]} Points</p>
-                <small>{u3[2]}</small>
-            </div>
-            """, unsafe_allow_html=True)
-
-    st.divider()
-
-    # --- 2. THE REST OF THE LIST (Ranks 4-10) ---
-    st.markdown("### 🚀 Rising Stars")
-    
-    if len(top_students) > 3:
-        for i in range(3, len(top_students)):
-            u = top_students[i] # (username, points, role, year)
-            rank = i + 1
-            
-            with st.container(border=True):
-                c1, c2, c3, c4 = st.columns([0.5, 1, 3, 1])
-                with c1:
-                    st.markdown(f"**#{rank}**")
-                with c2:
-                    # Tiny avatar
-                    st.image(f"https://api.dicebear.com/7.x/identicon/svg?seed={u[0]}", width=40)
-                with c3:
-                    st.markdown(f"**{u[0]}**")
-                    st.caption(f"{u[2]} • {u[3]}")
-                with c4:
-                    st.markdown(f"**{u[1]} pts**")
-    else:
-        st.info("Join the race! We need more students to fill the Top 10.")
-
-# --- 3. YOUR PERSONAL STATS (Floating or Bottom) ---
-if "user" in st.session_state:
-    st.divider()
-    
-    # Find my data
-    my_data = None
-    for i, s in enumerate(top_students):
-        if s[0] == st.session_state["user"]:
-            my_data = {"rank": i+1, "points": s[1]}
-            break
-            
-    # If not in top 10, fetch from DB separately
-    if not my_data:
-        conn = db.sqlite3.connect('pec_data.db')
-        c = conn.cursor()
-        c.execute("SELECT points FROM users WHERE username=?", (st.session_state['user'],))
-        res = c.fetchone()
-        conn.close()
-        my_pts = res[0] if res else 0
-        my_data = {"rank": "10+", "points": my_pts}
-
-    st.success(f"👤 **Your Stats:** Rank **#{my_data['rank']}** with **{my_data['points']} Points**. Keep pushing!")

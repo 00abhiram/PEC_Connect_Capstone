@@ -1,241 +1,264 @@
-import sqlite3
+import streamlit as st
+from supabase import create_client, Client
 import hashlib
 
-def init_db():
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    
-    # 1. USERS TABLE (Now with 'avatar' column)
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (username TEXT PRIMARY KEY, password TEXT, role TEXT, year TEXT, points INTEGER, avatar TEXT)''')
-    
-    # MIGRATION: Check if 'avatar' column exists (for existing databases)
-    c.execute("PRAGMA table_info(users)")
-    columns = [info[1] for info in c.fetchall()]
-    if 'avatar' not in columns:
-        c.execute("ALTER TABLE users ADD COLUMN avatar TEXT")
-
-    # 2. NOTES TABLE
-    c.execute('''CREATE TABLE IF NOT EXISTS notes
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  subject TEXT, title TEXT, link TEXT, 
-                  price INTEGER, uploader TEXT, 
-                  note_type TEXT, contact TEXT)''')
-    
-    # 3. MENTORS TABLE
-    c.execute('''CREATE TABLE IF NOT EXISTS mentors
-                 (user_id TEXT, subject_expertise TEXT, hourly_rate INTEGER, 
-                  contact_number TEXT, bio TEXT)''')
-    
-    # 4. TEST RESULTS TABLE
-    c.execute('''CREATE TABLE IF NOT EXISTS test_results
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT, subject TEXT, score INTEGER, 
-                  date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-    # 5. FORUM QUESTIONS TABLE
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_questions
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT, subject TEXT, question_text TEXT, 
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-    # 6. FORUM ANSWERS TABLE
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_answers
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  question_id INTEGER, username TEXT, answer_text TEXT, 
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-    # 7. STUDY GROUP CHATS TABLE
-    c.execute('''CREATE TABLE IF NOT EXISTS study_chats
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT, room_name TEXT, message TEXT, 
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-    # 8. ROOM NAMES TABLE
-    c.execute('''CREATE TABLE IF NOT EXISTS study_rooms
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  room_name TEXT UNIQUE)''')
-
-    # --- Pre-populate Default Rooms if empty ---
-    c.execute("SELECT count(*) FROM study_rooms")
-    if c.fetchone()[0] == 0:
-        defaults = ["☕ General Lounge", "🔥 Exam Panic Room", "📐 M1 Survivors", 
-                    "🐍 Python Coders", "⚛️ Chemistry Lab", "🌙 Late Night Grind"]
-        for r in defaults:
-            c.execute("INSERT OR IGNORE INTO study_rooms (room_name) VALUES (?)", (r,))
-
-    conn.commit()
-    conn.close()
-
 # ==========================================
-# 👤 USER AUTHENTICATION & PROFILE
+# 🔌 CONNECT TO SUPABASE
 # ==========================================
-
-def add_user(username, password, role, year):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+@st.cache_resource
+def init_connection():
     try:
-        # Default points = 0, Default avatar = NULL
-        c.execute("INSERT INTO users VALUES (?,?,?,?,0, NULL)", (username, hashed_pw, role, year))
-        conn.commit()
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"❌ Supabase Connection Error: {e}")
+        return None
+
+supabase: Client = init_connection()
+
+def init_db():
+    pass
+
+# ==========================================
+# 👤 USER & AUTH
+# ==========================================
+def add_user(username, password, role, year, full_name="", email=""):
+    try:
+        exists = supabase.table("users").select("username").eq("username", username).execute()
+        if exists.data: return False
+        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+        data = {
+            "username": username, "password": hashed_pw, "role": role,
+            "year": year, "full_name": full_name, "email": email,
+            "points": 0, "avatar": "" 
+        }
+        supabase.table("users").insert(data).execute()
         return True
-    except:
-        return False
-    finally:
-        conn.close()
+    except: return False
 
 def check_login(username, password):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed_pw))
-    data = c.fetchone()
-    conn.close()
-    return data
+    try:
+        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+        response = supabase.table("users").select("*").eq("username", username).execute()
+        if response.data:
+            user = response.data[0]
+            if user['password'] == hashed_pw or user['password'] == password:
+                return user 
+        return None
+    except: return None
 
-def update_avatar(username, base64_img):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("UPDATE users SET avatar = ? WHERE username = ?", (base64_img, username))
-    conn.commit()
-    conn.close()
-
-def get_user_avatar(username):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("SELECT avatar FROM users WHERE username = ?", (username,))
-    res = c.fetchone()
-    conn.close()
-    return res[0] if res else None
+def get_user_details(username):
+    try:
+        res = supabase.table("users").select("*").eq("username", username).execute()
+        return res.data[0] if res.data else None
+    except: return None
 
 def get_leaderboard():
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    # Get Top 10 users sorted by points
-    c.execute("SELECT username, points, role, year FROM users ORDER BY points DESC LIMIT 10")
-    data = c.fetchall()
-    conn.close()
-    return data
+    try: return supabase.table("users").select("*").order("points", desc=True).limit(20).execute().data
+    except: return []
+
+def search_users(query):
+    try:
+        return supabase.table("users").select("*").or_(f"full_name.ilike.%{query}%,username.ilike.%{query}%,skills.ilike.%{query}%").execute().data
+    except: return []
 
 # ==========================================
-# 📚 NOTES MARKETPLACE
+# 🖼️ AVATAR & STORAGE (OPTIMIZED)
 # ==========================================
+def update_avatar(username, file_bytes, file_type):
+    """
+    Uploads image to Supabase Storage Bucket and saves the URL.
+    """
+    try:
+        file_ext = file_type.split("/")[-1]
+        file_path = f"{username}_avatar.{file_ext}"
+        
+        # 1. Upload to 'avatars' bucket
+        supabase.storage.from_("avatars").upload(
+            file_path, 
+            file_bytes, 
+            {"content-type": file_type, "upsert": "true"}
+        )
+        
+        # 2. Get Public URL
+        public_url = supabase.storage.from_("avatars").get_public_url(file_path)
+        
+        # 3. Save URL to DB
+        supabase.table("users").update({"avatar": public_url}).eq("username", username).execute()
+        return True
+    except Exception as e:
+        print(f"Upload Error: {e}")
+        return False
 
-def add_note(subject, title, link, price, uploader, note_type, contact):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO notes (subject, title, link, price, uploader, note_type, contact) VALUES (?,?,?,?,?,?,?)",
-              (subject, title, link, price, uploader, note_type, contact))
-    conn.commit()
-    conn.close()
+def get_user_avatar(username):
+    """Returns the raw avatar field (URL or Base64)"""
+    try:
+        res = supabase.table("users").select("avatar").eq("username", username).execute()
+        return res.data[0]['avatar'] if res.data else None
+    except: return None
 
-def get_all_notes():
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM notes")
-    data = c.fetchall()
-    conn.close()
-    return data
-
-# ==========================================
-# 📝 MOCK TESTS & POINTS
-# ==========================================
-
-def save_test_result(username, subject, score):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO test_results (username, subject, score) VALUES (?,?,?)", (username, subject, score))
-    # +10 Points for taking a test
-    c.execute("UPDATE users SET points = points + 10 WHERE username=?", (username,))
-    conn.commit()
-    conn.close()
-
-def get_user_progress(username):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("SELECT id, username, subject, score, date FROM test_results WHERE username=?", (username,))
-    data = c.fetchall()
-    conn.close()
-    return data
-
-# ==========================================
-# 🗣️ DOUBT FORUM
-# ==========================================
-
-def post_question(username, subject, text):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO forum_questions (username, subject, question_text) VALUES (?,?,?)", (username, subject, text))
-    conn.commit()
-    conn.close()
-
-def get_questions(subject_filter=None):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    if subject_filter and subject_filter != "All":
-        c.execute("SELECT * FROM forum_questions WHERE subject=? ORDER BY id DESC", (subject_filter,))
-    else:
-        c.execute("SELECT * FROM forum_questions ORDER BY id DESC")
-    data = c.fetchall()
-    conn.close()
-    return data
-
-def post_answer(question_id, username, text):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO forum_answers (question_id, username, answer_text) VALUES (?,?,?)", (question_id, username, text))
-    # +5 Points for helping others
-    c.execute("UPDATE users SET points = points + 5 WHERE username=?", (username,))
-    conn.commit()
-    conn.close()
-
-def get_answers(question_id):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM forum_answers WHERE question_id=?", (question_id,))
-    data = c.fetchall()
-    conn.close()
-    return data
+def get_avatar_url(username):
+    """
+    Smart Helper: Returns a valid image URL for any user.
+    Handles: Cloud URL (New) | Base64 (Old) | Dicebear (Default)
+    """
+    try:
+        raw = get_user_avatar(username)
+        if raw:
+            # If it's a Cloud URL or valid Base64
+            if "http" in str(raw): return raw
+            if len(str(raw)) > 100: return f"data:image/png;base64,{raw}"
+        
+        # Default Fallback
+        return f"https://api.dicebear.com/7.x/identicon/svg?seed={username}"
+    except:
+        return f"https://api.dicebear.com/7.x/identicon/svg?seed={username}"
 
 # ==========================================
-# 👥 STUDY GROUPS & ROOMS
+# 🌐 NETWORK & MESSAGING
 # ==========================================
+def get_connection_status(sender, receiver):
+    try:
+        res = supabase.table("connections").select("status").or_(
+            f"and(sender.eq.{sender},receiver.eq.{receiver}),and(sender.eq.{receiver},receiver.eq.{sender})"
+        ).execute()
+        return res.data[0]['status'] if res.data else None
+    except: return None
 
-def send_group_message(username, room, message):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO study_chats (username, room_name, message) VALUES (?,?,?)", (username, room, message))
-    # +1 Point for being active in study groups
-    c.execute("UPDATE users SET points = points + 1 WHERE username=?", (username,))
-    conn.commit()
-    conn.close()
+def send_connection_request(sender, receiver):
+    try:
+        if get_connection_status(sender, receiver): return False
+        supabase.table("connections").insert({"sender": sender, "receiver": receiver, "status": "pending"}).execute()
+        return True
+    except: return False
 
-def get_group_messages(room):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM study_chats WHERE room_name=? ORDER BY id ASC", (room,))
-    data = c.fetchall()
-    conn.close()
-    return data
+def get_pending_requests(username):
+    try:
+        res = supabase.table("connections").select("*").eq("receiver", username).eq("status", "pending").execute()
+        return res.data
+    except: return []
+
+def respond_to_request(sender, receiver, action):
+    try:
+        if action == "accept":
+            supabase.table("connections").update({"status": "accepted"}).match({"sender": sender, "receiver": receiver}).execute()
+        elif action == "reject":
+            supabase.table("connections").delete().match({"sender": sender, "receiver": receiver}).execute()
+        return True
+    except: return False
+
+def send_message(sender, receiver, content):
+    try:
+        supabase.table("messages").insert({"sender_username": sender, "receiver_username": receiver, "content": content}).execute()
+        return True
+    except: return False
+
+def get_chat_history(user1, user2):
+    try:
+        return supabase.table("messages").select("*").or_(
+            f"and(sender_username.eq.{user1},receiver_username.eq.{user2}),and(sender_username.eq.{user2},receiver_username.eq.{user1})"
+        ).order("created_at", desc=False).execute().data
+    except: return []
+
+# ==========================================
+# 👥 STUDY GROUPS & FORUM
+# ==========================================
+def get_all_rooms():
+    try:
+        res = supabase.table("study_rooms").select("room_name").execute()
+        return [r['room_name'] for r in res.data] if res.data else ["☕ General Lounge"]
+    except: return ["☕ General Lounge"]
 
 def create_new_room(room_name):
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
     try:
-        c.execute("INSERT INTO study_rooms (room_name) VALUES (?)", (room_name,))
-        conn.commit()
+        exists = supabase.table("study_rooms").select("*").eq("room_name", room_name).execute()
+        if exists.data: return False
+        supabase.table("study_rooms").insert({"room_name": room_name}).execute()
         return True
-    except:
-        return False # Room probably already exists
-    finally:
-        conn.close()
+    except: return False
 
-def get_all_rooms():
-    conn = sqlite3.connect('pec_data.db')
-    c = conn.cursor()
-    c.execute("SELECT room_name FROM study_rooms")
-    data = c.fetchall()
-    conn.close()
-    # Convert list of tuples [('A',), ('B',)] to list ['A', 'B']
-    return [r[0] for r in data]
+def get_group_messages(room_name):
+    try:
+        return supabase.table("study_chats").select("*").eq("room_name", room_name).order("timestamp", desc=False).execute().data
+    except: return []
+
+def send_group_message(username, room, message):
+    try:
+        supabase.table("study_chats").insert({"username": username, "room_name": room, "message": message}).execute()
+    except: pass
+
+def get_questions(subject_filter=None):
+    try:
+        q = supabase.table("forum_questions").select("*").order("id", desc=True)
+        if subject_filter and subject_filter != "All": q = q.eq("subject", subject_filter)
+        return q.execute().data
+    except: return []
+
+def post_question(username, subject, text):
+    try: supabase.table("forum_questions").insert({"username": username, "subject": subject, "question_text": text}).execute()
+    except: pass
+
+def get_answers(q_id):
+    try: return supabase.table("forum_answers").select("*").eq("question_id", q_id).order("id", desc=False).execute().data
+    except: return []
+
+def post_answer(q_id, username, text):
+    try: supabase.table("forum_answers").insert({"question_id": q_id, "username": username, "answer_text": text}).execute()
+    except: pass
+
+def upvote_question(q_id):
+    try:
+        supabase.rpc("increment_upvotes", {"row_id": q_id}).execute()
+        return True
+    except: return False
+
+def mark_solved(q_id):
+    try:
+        supabase.table("forum_questions").update({"is_solved": True}).eq("id", q_id).execute()
+        return True
+    except: return False
+
+# ==========================================
+# 🎓 ACADEMICS (TESTS, MENTORS, NOTES)
+# ==========================================
+def get_user_test_history(username):
+    try: return supabase.table("test_results").select("*").eq("username", username).execute().data
+    except: return []
+
+def get_all_mentors():
+    try: return supabase.table("mentors").select("*").execute().data
+    except: return []
+
+def register_mentor(username, skills, rate, contact, bio):
+    try:
+        data = {"username": username, "skills": skills, "rate": rate, "contact": contact, "bio": bio}
+        supabase.table("mentors").upsert(data).execute()
+        supabase.table("users").update({"role": "Mentor"}).eq("username", username).execute()
+        return True
+    except: return False
+
+def delete_mentor(username):
+    try:
+        supabase.table("mentors").delete().eq("username", username).execute()
+        supabase.table("users").update({"role": "Student"}).eq("username", username).execute()
+        return True
+    except: return False
+
+def get_user_notes(username):
+    try: return supabase.table("notes").select("*").eq("uploader", username).execute().data
+    except: return []
+
+def get_verified_skills(username):
+    try:
+        results = supabase.table("test_results").select("*").eq("username", username).execute().data
+        if not results: return []
+        
+        best_scores = {}
+        for r in results:
+            sub, score = r['subject'], r['score']
+            if sub not in best_scores or score > best_scores[sub]:
+                best_scores[sub] = score
+        
+        return [sub for sub, score in best_scores.items() if score >= 8]
+    except: return []

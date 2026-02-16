@@ -1,237 +1,284 @@
 import streamlit as st
 import google.generativeai as genai
+from groq import Groq
 import time
-from google.api_core import exceptions
-from PIL import Image  # <--- NEW IMPORT
 
-# --- LOAD CUSTOM LOGO ---
-# Even though this file is in "pages/", Streamlit runs from the root,
-# so we can still look for "favicon.png" directly.
-try:
-    favicon = Image.open("favicon.png")
-except FileNotFoundError:
-    favicon = "🤖"  # Fallback emoji
-
-# --- PAGE SETUP ---
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="AI Tutor | PEC",
-    page_icon=favicon,  # <--- UPDATED HERE
+    page_icon="🧠",
     layout="wide"
 )
 
-# ... (Keep the rest of your code exactly the same from here down)
-
-# --- CUSTOM CSS FOR CHAT ---
+# --- PROFESSIONAL UI STYLING (Gemini/ChatGPT Style) ---
 st.markdown("""
 <style>
+    /* Main Chat Container */
     .stChatMessage {
-        background-color: #f8f9fa;
-        border-radius: 10px;
-        padding: 10px;
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        border: 1px solid #f1f5f9;
+    }
+    
+    /* User Message Bubble */
+    [data-testid="stChatMessageUser"] {
+        background-color: #f8fafc;
+        border-left: 4px solid #3b82f6;
+    }
+    
+    /* AI Message Bubble */
+    [data-testid="stChatMessageAssistant"] {
+        background-color: #ffffff;
+        border-left: 4px solid #10b981;
+    }
+    
+    /* Sidebar Status Badges */
+    .status-indicator {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
         margin-bottom: 10px;
     }
-    .stChatMessage[data-testid="stChatMessageUser"] {
-        background-color: #e3f2fd;
-        border-left: 5px solid #2196f3;
-    }
-    .stChatMessage[data-testid="stChatMessageAssistant"] {
-        background-color: #f1f8e9;
-        border-left: 5px solid #4caf50;
-    }
+    .status-active { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .status-inactive { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+
+    /* Titles & Headers */
+    h1 { letter-spacing: -1px; font-weight: 800 !important; color: #1e293b; }
+    .subtitle { color: #64748b; font-size: 1.1rem; margin-top: -15px; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🤖 PEC AI 'Fail-to-Pass' Engine")
-st.caption("Your Personal Tutor, Strict Examiner, and Diagram Artist (R24 Syllabus).")
+# --- JNTUH R24/R22 COMPLETE SYLLABUS LIST ---
+SUBJECTS = {
+    "I Year (Freshman)": [
+        "Matrices and Calculus (M1)", "ODE & Vector Calculus (M2)", 
+        "Engineering Chemistry", "Applied Physics", 
+        "C Programming & Data Structures", "Python Programming", 
+        "Basic Electrical Engineering (BEE)", "Computer Aided Engineering Graphics", 
+        "Engineering Workshop", "English for Skill Enhancement"
+    ],
+    "II Year (Sophomore)": [
+        "Discrete Mathematics", "Digital Electronics", 
+        "Computer Organization & Architecture (COA)", "Object Oriented Programming (Java)", 
+        "Database Management Systems (DBMS)", "Operating Systems (OS)", 
+        "Software Engineering", "Design & Analysis of Algorithms (DAA)", 
+        "Business Economics & Financial Analysis"
+    ],
+    "III Year (Junior)": [
+        "Computer Networks", "Web Technologies", 
+        "Artificial Intelligence", "Machine Learning", 
+        "Formal Languages & Automata Theory", "Compiler Design", 
+        "Data Analytics", "Information Security", "Cloud Computing"
+    ],
+    "IV Year (Senior)": [
+        "Deep Learning", "Natural Language Processing (NLP)", 
+        "Big Data Analytics", "Cyber Security", 
+        "Internet of Things (IoT)", "Blockchain Technology", 
+        "Project Management", "Entrepreneurship"
+    ]
+}
 
-# --- CONNECT TO GEMINI ---
+# --- INITIALIZE AI ENGINES ---
+# 1. Google Gemini (Primary)
 try:
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        st.session_state["gemini_status"] = True
     else:
-        # Fallback if secret not found (useful for local dev if key is pasted directly)
-        # st.warning("⚠️ Using fallback API key setup...") 
-        pass 
+        st.session_state["gemini_status"] = False
+except:
+    st.session_state["gemini_status"] = False
 
-    # --- MODEL HUNTER FUNCTION ---
-    def get_working_model():
-        candidates = [
-            "gemini-2.0-flash-lite-preview-02-05", 
-            "gemini-2.0-flash",                     
-            "gemini-1.5-flash",                     
-            "gemini-1.5-pro",
-        ]
-        
-        for model_name in candidates:
-            try:
-                test_model = genai.GenerativeModel(model_name)
-                test_model.generate_content("test")
-                return test_model 
-            except Exception:
-                continue
-        return None
+# 2. Groq Llama-3 (Reliable Backup)
+try:
+    if "GROQ_API_KEY" in st.secrets:
+        groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        st.session_state["groq_status"] = True
+    else:
+        st.session_state["groq_status"] = False
+except:
+    st.session_state["groq_status"] = False
 
-    if "ai_model" not in st.session_state:
-        with st.spinner("🔄 Syncing with Google Gemini..."):
-            st.session_state.ai_model = get_working_model()
+# --- SMART ROUTING FUNCTION ---
+def ask_ai_engine(prompt, engine_preference="Auto"):
+    """
+    Intelligent switching between Gemini and Groq.
+    """
+    # Attempt 1: Gemini
+    if st.session_state["gemini_status"]:
+        try:
+            response = gemini_model.generate_content(prompt)
+            return response.text
+        except Exception:
+            pass # Silently failover to Groq
 
-    model = st.session_state.ai_model
+    # Attempt 2: Groq (Updated to latest model)
+    if st.session_state["groq_status"]:
+        try:
+            chat_completion = groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.3-70b-versatile", # <--- UPDATED MODEL HERE
+            )
+            # Returning answer without the "Backup" label as requested
+            return chat_completion.choices[0].message.content
+        except Exception as e:
+            return f"❌ System Error: Both AI engines are unreachable. ({e})"
 
-    if not model:
-        st.error("❌ Could not connect to Gemini. Please check your API Key or Quota.")
-        st.stop()
+    return "❌ API Keys not found. Please check secrets.toml."
 
-except Exception as e:
-    st.error(f"⚠️ Connection Error: {e}")
-    st.stop()
-
-# --- HELPER FUNCTION: SMART RETRY ---
-def ask_ai(prompt):
-    try:
-        return model.generate_content(prompt).text
-    except exceptions.ResourceExhausted:
-        with st.spinner("⚠️ High traffic. Waiting 10s for free tier..."):
-            time.sleep(10)
-            try:
-                return model.generate_content(prompt).text
-            except:
-                return "⚠️ AI is currently overloaded. Please try again in 30 seconds."
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# --- SIDEBAR: CONTROLS ---
+# --- SIDEBAR: SETTINGS ---
 with st.sidebar:
-    st.header("🧠 Select Mode")
-    mode = st.radio("Choose AI Tool:", 
-        ["💬 Chat Tutor", "📝 Strict Examiner (Grader)", "🎨 Diagram Generator"]
-    )
+    st.title("⚙️ Neural Config")
+    
+    # Connection Status
+    c1, c2 = st.columns(2)
+    with c1:
+        status = "active" if st.session_state["gemini_status"] else "inactive"
+        st.markdown(f'<span class="status-indicator status-{status}">Gemini 1.5</span>', unsafe_allow_html=True)
+    with c2:
+        status = "active" if st.session_state["groq_status"] else "inactive"
+        st.markdown(f'<span class="status-indicator status-{status}">Llama 3.3</span>', unsafe_allow_html=True)
+        
+    st.divider()
+
+    # Tool Selector
+    tool_mode = st.selectbox("Select AI Tool", ["💬 AI Tutor", "📝 Strict Examiner", "🎨 Diagram Generator"])
     
     st.divider()
     
-    st.header("⚙️ Exam Settings")
+    # Subject Selector
+    st.markdown("**📚 Select Subject**")
+    year_select = st.selectbox("Year", list(SUBJECTS.keys()), label_visibility="collapsed")
+    current_subject = st.selectbox("Subject", SUBJECTS[year_select], label_visibility="collapsed")
     
-    # --- UPDATED JNTUH R24 SUBJECT LIST ---
-    subject = st.selectbox("Current Subject", [
-        "Matrices and Calculus (M1)",
-        "Ordinary Differential Equations & Vector Calculus (M2)",
-        "Applied Physics",
-        "Engineering Chemistry",
-        "C Programming & Data Structures",
-        "Python Programming",
-        "Computer Aided Engineering Graphics",
-        "Basic Electrical Engineering (BEE)",
-        "Electronic Devices and Circuits",
-        "English for Skill Enhancement",
-        "IT Workshop",
-        "Discrete Mathematics"
-    ])
+    st.divider()
     
-    days_left = st.slider("Days until Exam?", 1, 30, 3)
+    # Exam Mode Toggle
+    exam_mode = st.toggle("🔥 Panic Mode (Exam Prep)", value=False, help="Switches AI to give short, bullet-point answers suitable for exams.")
     
-    # Dynamic Goal Display
-    if days_left <= 2:
-        st.error(f"🔥 **PANIC MODE:** Pass {subject} in {days_left} days!")
-    elif days_left <= 7:
-        st.warning(f"⚠️ **Urgent:** Pass {subject} in {days_left} days.")
-    else:
-        st.success(f"🎯 **Goal:** Pass {subject} in {days_left} days.")
+    # Clear Chat
+    if st.button("🗑️ Reset Conversation", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+
+# --- MAIN PAGE HEADER ---
+st.title("🧠 PEC AI Knowledge Engine")
+st.markdown(f'<div class="subtitle">Your 24/7 Personal Professor for <b>{current_subject}</b></div>', unsafe_allow_html=True)
+st.divider()
 
 # ==========================================
 # MODE 1: CHAT TUTOR
 # ==========================================
-if mode == "💬 Chat Tutor":
-    st.subheader(f"💬 {subject} Concept Explainer")
-    
+if tool_mode == "💬 AI Tutor":
     if "messages" not in st.session_state:
-        st.session_state.messages = []
-        st.session_state.messages.append({"role": "assistant", "content": f"I am your {subject} Tutor. What topic is confusing you?"})
+        st.session_state.messages = [{"role": "assistant", "content": f"Hi! I'm ready to help with **{current_subject}**. What topic shall we cover?"}]
 
-    # Display Chat History
+    # Render Chat History
     for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
+        avatar = "🧑‍🎓" if msg["role"] == "user" else "🤖"
+        with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
 
-    if prompt := st.chat_input(f"Ask about {subject}..."):
+    # Chat Input
+    if prompt := st.chat_input(f"Ask about {current_subject}..."):
+        # 1. User Message
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar="🧑‍🎓"):
             st.markdown(prompt)
 
-        with st.spinner("🤖 Thinking..."):
-            # Context-Aware Prompt
-            urgency = "EXTREMELY SHORT and SIMPLE (Crash Course style)" if days_left < 2 else "detailed with examples"
-            
-            full_prompt = f"""
-            Role: Expert Engineering Professor for {subject} (JNTUH R24 Regulation).
-            Context: Student has {days_left} days before the exam.
-            Question: '{prompt}'
-            Task: Explain this concept clearly. Keep the explanation {urgency}. 
-            Use real-world analogies if possible.
-            """
-            response_text = ask_ai(full_prompt)
-            
-            st.session_state.messages.append({"role": "assistant", "content": response_text})
-            with st.chat_message("assistant"):
-                st.markdown(response_text)
+        # 2. AI Response
+        with st.chat_message("assistant", avatar="🤖"):
+            with st.spinner("Analyzing..."):
+                tone = "extremely concise, point-wise (Exam Style)" if exam_mode else "detailed, conceptual, with examples"
+                
+                full_prompt = f"""
+                You are an expert Professor for JNTUH B.Tech (R24 Regulation).
+                Subject: {current_subject}
+                Context: {prompt}
+                Tone: {tone}
+                
+                Instructions:
+                - Explain clearly and accurately.
+                - If code is required, provide clean, commented code.
+                - Use formatting (bolding, lists) to make it readable.
+                """
+                
+                response = ask_ai_engine(full_prompt)
+                st.markdown(response)
+                st.session_state.messages.append({"role": "assistant", "content": response})
 
 # ==========================================
 # MODE 2: STRICT EXAMINER
 # ==========================================
-elif mode == "📝 Strict Examiner (Grader)":
-    st.subheader("📝 Roast My Answer (Auto-Grader)")
-    st.markdown("Paste a question and your answer. I will grade it like a **Strict JNTUH External Examiner**.")
+elif tool_mode == "📝 Strict Examiner":
+    st.subheader("📝 Auto-Grader & Improver")
+    st.info("Paste an exam question and your answer. I will grade it like a strict external examiner.")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        question = st.text_input("Exam Question", placeholder="Ex: Define Kirchhoff's Current Law")
-    with col2:
-        max_marks = st.slider("Max Marks", 5, 15, 5)
+    col_q, col_m = st.columns([3, 1])
+    with col_q:
+        q_text = st.text_input("Exam Question", placeholder="e.g. Define Kirchhoff's Voltage Law")
+    with col_m:
+        max_marks = st.number_input("Max Marks", min_value=2, max_value=15, value=5)
         
-    student_answer = st.text_area("Your Answer", height=150, placeholder="Type your answer here...")
+    ans_text = st.text_area("Your Answer", height=200, placeholder="Type your answer here...")
     
-    if st.button("👨‍🏫 Grade My Answer"):
-        if not student_answer:
-            st.warning("Please write an answer first!")
-        else:
-            with st.spinner("🔍 Examiner is checking your paper..."):
+    if st.button("👨‍🏫 Grade My Answer", type="primary"):
+        if q_text and ans_text:
+            with st.spinner("Grading papers..."):
                 grading_prompt = f"""
-                You are a strict engineering professor grading a JNTUH R24 exam paper. 
-                Subject: {subject}
-                Question: {question}
-                Student Answer: {student_answer}
+                Act as a strict JNTUH External Examiner.
+                Subject: {current_subject}
+                Question: {q_text}
+                Student Answer: {ans_text}
                 Max Marks: {max_marks}
                 
-                Task:
-                1. Give a score (e.g., 3/{max_marks}).
-                2. List MISSING KEYWORDS that caused mark loss.
-                3. Rewrite the "Perfect 5-Mark Answer" exactly how a topper would write it.
+                Provide:
+                1. Score (X/{max_marks})
+                2. Verdict (Pass/Fail)
+                3. Missing Keywords (What did the student miss?)
+                4. Model Answer (The perfect answer for full marks)
                 """
-                response_text = ask_ai(grading_prompt)
-                st.markdown(response_text)
+                result = ask_ai_engine(grading_prompt)
+                st.markdown(result)
+        else:
+            st.warning("Please provide both the question and your answer.")
 
 # ==========================================
 # MODE 3: DIAGRAM GENERATOR
 # ==========================================
-elif mode == "🎨 Diagram Generator":
-    st.subheader("🎨 Instant Engineering Diagrams")
-    st.markdown("Can't remember the block diagram? Type the topic, and I'll draw it.")
+elif tool_mode == "🎨 Diagram Generator":
+    st.subheader("🎨 Engineering Diagram Generator")
+    st.caption("Generate Flowcharts, Block Diagrams, and Mind Maps instantly.")
     
-    diagram_topic = st.text_input("What diagram do you need?", placeholder="Ex: Flowchart of While Loop")
+    topic = st.text_input("What diagram do you need?", placeholder="e.g. Flowchart of While Loop")
     
-    if st.button("✨ Generate Diagram"):
-        with st.spinner("🎨 Drawing..."):
-            code_prompt = f"""
-            Create a simple Graphviz DOT code for a: {diagram_topic} related to {subject}.
-            Only output the code inside ```dot ... ``` block. Do not add explanations.
-            Make it professional and easy to read.
+    if st.button("✨ Generate Diagram", type="primary"):
+        with st.spinner("Drawing..."):
+            dia_prompt = f"""
+            Generate a valid Graphviz DOT code for a diagram about: "{topic}" related to {current_subject}.
+            - Output ONLY the code inside ```dot ... ``` block.
+            - Do not write any explanations.
+            - Use professional styling (rectangles, clean edges).
+            - Rank direction: Top to Bottom (TB).
             """
-            response_text = ask_ai(code_prompt)
             
+            res = ask_ai_engine(dia_prompt)
+            
+            # Extract and Render Code
             try:
-                if "```dot" in response_text:
-                    dot_code = response_text.split("```dot")[1].split("```")[0].strip()
-                    st.graphviz_chart(dot_code)
-                    st.success(f"Here is the diagram for {diagram_topic}.")
+                if "```dot" in res:
+                    code = res.split("```dot")[1].split("```")[0].strip()
+                    st.graphviz_chart(code)
+                elif "```graphviz" in res:
+                    code = res.split("```graphviz")[1].split("```")[0].strip()
+                    st.graphviz_chart(code)
                 else:
-                    st.error("AI couldn't generate a valid diagram. Try a simpler topic.")
-            except:
-                st.error("Error drawing diagram. Please try again.")
+                    st.error("AI could not generate a valid diagram. Please try a simpler topic.")
+            except Exception as e:
+                st.error(f"Rendering Error: {e}")

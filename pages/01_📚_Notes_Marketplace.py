@@ -1,16 +1,51 @@
 import streamlit as st
-import sqlite3
+import database as db
+import time
 
-# Connect to DB
-conn = sqlite3.connect('pec_data.db')
-c = conn.cursor()
-
+# --- PAGE SETUP ---
 st.set_page_config(page_title="Resources | PEC", page_icon="📚", layout="wide")
 
-st.title("📚 PEC Resource Center")
-st.caption("One-stop shop for Notes, Labs, Syllabus, and Question Papers.")
+# Initialize DB connection (Uses your Supabase setup)
+db.init_db()
 
-# --- NAVIGATION TABS (Now 6 Tabs for better organization) ---
+# --- PROFESSIONAL CSS ---
+st.markdown("""
+<style>
+    .resource-card {
+        background: white; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 20px; margin-bottom: 15px; transition: transform 0.2s;
+    }
+    .resource-card:hover { border-color: #3b82f6; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    
+    .type-badge {
+        font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+        text-transform: uppercase; margin-bottom: 8px; display: inline-block;
+    }
+    .badge-pdf { background: #fee2e2; color: #991b1b; }
+    .badge-lab { background: #fef3c7; color: #92400e; }
+    .badge-pyq { background: #dcfce7; color: #166534; }
+    .badge-xerox { background: #eff6ff; color: #1e40af; }
+    
+    .price-tag { font-size: 1.1rem; font-weight: 800; color: #0f172a; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("📚 PEC Resource Center")
+st.caption("Access verified study materials, lab manuals, and previous papers.")
+
+# --- HELPERS ---
+BRANCHES = ["CSE", "CSE-AIML", "ECE", "EEE", "Civil", "Mech", "IT"]
+SUBJECT_LIST = ["M1", "M2", "BEE", "Chemistry", "Physics", "Python", "Data Structures", "OS", "DBMS", "AI/ML", "General"]
+
+def delete_resource(note_id):
+    """Deletes a note from Supabase"""
+    try:
+        db.supabase.table("notes").delete().eq("id", note_id).execute()
+        return True
+    except:
+        return False
+
+# --- NAVIGATION TABS ---
 tabs = st.tabs([
     "📄 Digital Notes", 
     "🧪 Lab & Viva",
@@ -20,189 +55,144 @@ tabs = st.tabs([
     "📤 Upload / Sell"
 ])
 
-# Define Branches List (Added CSE-AIML)
-BRANCHES = ["CSE", "CSE-AIML", "ECE", "EEE", "Civil", "Mech", "IT"]
-
-# --- TAB 1: DIGITAL NOTES (PDFs) ---
+# ==========================================
+# TAB 1: DIGITAL NOTES (PDFs)
+# ==========================================
 with tabs[0]:
     st.subheader("📖 Free Digital Notes")
-    col1, col2 = st.columns(2)
-    search_sub = col1.text_input("Search Subject", key="pdf_search")
-    filter_branch = col2.selectbox("Filter Branch", ["All"] + BRANCHES, key="pdf_branch")
+    c1, c2 = st.columns(2)
+    s_query = c1.text_input("Search Subject", key="search_pdf")
+    f_branch = c2.selectbox("Branch", ["All"] + BRANCHES, key="filt_pdf")
     
-    query = "SELECT * FROM notes WHERE note_type='PDF'"
-    if search_sub:
-        query += f" AND subject LIKE '%{search_sub}%'"
-    if filter_branch != "All":
-        query += f" AND title LIKE '%{filter_branch}%'"
-    
-    c.execute(query)
-    pdfs = c.fetchall()
-    
-    if not pdfs:
-        st.info("No PDFs found for this selection.")
+    # Query Supabase
+    try:
+        res = db.supabase.table("notes").select("*").eq("note_type", "PDF")
+        if f_branch != "All": res = res.ilike("title", f"%{f_branch}%")
+        if s_query: res = res.ilike("subject", f"%{s_query}%")
+        notes = res.execute().data
+    except: notes = []
+
+    if not notes:
+        st.info("No notes found.")
     else:
-        for note in pdfs:
+        for n in notes:
             with st.container(border=True):
-                c1, c2 = st.columns([4, 1])
-                with c1:
-                    st.markdown(f"**{note[1]}**") # Subject
-                    st.caption(f"{note[2]} • Uploaded by {note[5]}")
-                with c2:
-                    st.link_button("⬇ Download", note[3])
+                ca, cb = st.columns([4, 1])
+                with ca:
+                    st.markdown(f"**{n['subject']}** — {n['title']}")
+                    st.caption(f"Uploaded by: {n['uploader']}")
+                with cb:
+                    st.link_button("⬇ Download", n['link'], use_container_width=True)
+                    if "user" in st.session_state and st.session_state["user"] == n['uploader']:
+                        if st.button("🗑️ Delete", key=f"del_{n['id']}"):
+                            if delete_resource(n['id']):
+                                st.success("Deleted!")
+                                time.sleep(1)
+                                st.rerun()
 
-# --- TAB 2: LAB MANUALS & VIVA (NEW!) ---
-with tabs[1]:
-    st.subheader("🧪 Lab Manuals & Viva Q&A")
-    st.info("Find corrected lab records and important viva questions here.")
-    
-    c.execute("SELECT * FROM notes WHERE note_type='LAB'")
-    labs = c.fetchall()
-    
-    if not labs:
-        st.warning("No Lab materials uploaded yet.")
-    else:
-        for item in labs:
-            with st.expander(f"🧪 {item[1]} ({item[2]})"): # Subject (Type)
-                st.write(f"**Uploaded by:** {item[5]}")
-                st.link_button("View Document", item[3])
-
-# --- TAB 3: SYLLABUS COPIES (NEW!) ---
-with tabs[2]:
-    st.subheader("📜 Official Syllabus (R18/R22)")
-    st.success("Always study the right topics. Download official JNTUH syllabus copies.")
-    
-    c.execute("SELECT * FROM notes WHERE note_type='SYLLABUS'")
-    syllabi = c.fetchall()
-    
-    if not syllabi:
-        st.info("No Syllabus copies uploaded yet.")
-    else:
-        for s in syllabi:
-            # Display as a clean list
-            col_a, col_b = st.columns([3, 1])
-            col_a.markdown(f"**{s[1]}** - {s[2]}") # e.g., CSE - R18
-            col_b.link_button("📄 Open PDF", s[3])
-            st.divider()
-
-# --- TAB 4: QUESTION PAPERS (Updated with Mids) ---
-with tabs[3]:
-    st.subheader("❓ Previous Year Question Papers (PYQ)")
-    
-    # Advanced Filters
-    c1, c2, c3 = st.columns(3)
-    sel_branch = c1.selectbox("Branch", ["All"] + BRANCHES, key="pyq_branch")
-    sel_exam = c2.selectbox("Exam Type", ["All", "Semester", "Mid-1", "Mid-2"], key="pyq_type")
-    sel_year = c3.selectbox("Year", ["All", "2023", "2022", "2021", "2020"], key="pyq_year")
-    
-    query = "SELECT * FROM notes WHERE note_type='PYQ'"
-    if sel_branch != "All":
-        query += f" AND title LIKE '%{sel_branch}%'"
-    if sel_exam != "All":
-        query += f" AND title LIKE '%{sel_exam}%'"
-    if sel_year != "All":
-        query += f" AND title LIKE '%{sel_year}%'"
+# ==========================================
+# TAB 2 & 3 & 4: Lab / Syllabus / PYQ
+# ==========================================
+# (Applying similar logic for these tabs using the Supabase data structure)
+types = {"🧪 Lab Manuals": "LAB", "📜 Syllabus": "SYLLABUS", "❓ PYQs": "PYQ"}
+for idx, (label, db_type) in enumerate(types.items(), start=1):
+    with tabs[idx]:
+        st.subheader(label)
+        try:
+            items = db.supabase.table("notes").select("*").eq("note_type", db_type).execute().data
+        except: items = []
         
-    c.execute(query)
-    pyqs = c.fetchall()
-    
-    if not pyqs:
-        st.info("No Question Papers match your filters.")
-    else:
-        for paper in pyqs:
-            with st.container(border=True):
-                st.markdown(f"**{paper[1]}**") # Subject
-                st.caption(f"📄 {paper[2]}") # Full Title (e.g. CSE - 2023 - Mid-1)
-                st.link_button("View Paper", paper[3])
+        if not items:
+            st.info(f"No {label} available yet.")
+        else:
+            for i in items:
+                with st.container(border=True):
+                    c1, c2 = st.columns([4, 1])
+                    c1.markdown(f"**{i['title']}**")
+                    c1.caption(f"Category: {i['subject']} | Added by {i['uploader']}")
+                    c2.link_button("View/Download", i['link'], use_container_width=True)
+                    if "user" in st.session_state and st.session_state["user"] == i['uploader']:
+                        if st.button("🗑️ Remove", key=f"del_i_{i['id']}"):
+                            delete_resource(i['id'])
+                            st.rerun()
 
-# --- TAB 5: XEROX MARKET ---
+# ==========================================
+# TAB 5: XEROX MARKET (Selling Hard Copies)
+# ==========================================
 with tabs[4]:
     st.subheader("🖨️ Buy Hard Copy Xerox")
+    try:
+        xerox = db.supabase.table("notes").select("*").eq("note_type", "XEROX").execute().data
+    except: xerox = []
     
-    c.execute("SELECT * FROM notes WHERE note_type='XEROX'")
-    items = c.fetchall()
-    
-    if not items:
-        st.warning("No Xerox copies for sale.")
+    if not xerox:
+        st.warning("No Xerox listings available.")
     else:
         cols = st.columns(3)
-        for i, item in enumerate(items):
+        for i, item in enumerate(xerox):
             with cols[i % 3]:
                 with st.container(border=True):
-                    st.markdown(f"### {item[1]}") # Subject
-                    st.write(f"**{item[2]}**") # Title
-                    st.markdown(f"#### Price: ₹{item[4]}")
-                    wa_url = f"https://wa.me/{item[7]}?text=Hi, I want to buy your {item[1]} notes."
-                    st.link_button("💬 Chat on WhatsApp", wa_url, type="primary")
+                    st.markdown(f"### {item['subject']}")
+                    st.write(f"_{item['title']}_")
+                    st.markdown(f"<div class='price-tag'>₹{item['price']}</div>", unsafe_allow_html=True)
+                    st.caption(f"Seller: {item['uploader']}")
+                    
+                    wa_link = f"https://wa.me/{item['contact']}?text=Hi, I want to buy {item['title']} notes."
+                    st.link_button("💬 WhatsApp Seller", wa_link, type="primary", use_container_width=True)
+                    
+                    # Delete Option for Seller
+                    if "user" in st.session_state and st.session_state["user"] == item['uploader']:
+                        st.write("")
+                        if st.button("🗑️ Mark as Sold", key=f"sold_{item['id']}", use_container_width=True):
+                            delete_resource(item['id'])
+                            st.success("Listing Removed!")
+                            st.rerun()
 
-# --- TAB 6: UPLOAD EVERYTHING ---
+# ==========================================
+# TAB 6: UPLOAD RESOURCE
+# ==========================================
 with tabs[5]:
-    st.subheader("📤 Upload Resource")
-    
+    st.subheader("📤 Contribute a Resource")
     if "user" not in st.session_state:
-        st.error("Please Login to upload.")
+        st.error("Please Login to upload study materials.")
     else:
-        # Category Selector
-        category = st.radio("Select Category", 
-            ["📄 Digital Note", "🧪 Lab Manual / Viva", "📜 Syllabus Copy", "❓ Question Paper", "🖨️ Xerox (Sell)"],
-            horizontal=True
-        )
-        
         with st.form("upload_form"):
-            # Common Fields
-            subj = st.selectbox("Subject Name", ["M1", "BEE", "Chemistry", "Python", "Data Structures", "OS", "DBMS", "AI/ML", "General"])
+            cat = st.selectbox("Category", ["Digital Note", "Lab Manual", "Syllabus Copy", "Question Paper", "Xerox (Sell)"])
+            sub = st.selectbox("Subject", SUBJECT_LIST)
             
-            # Dynamic Logic
-            title = ""
-            price = 0
-            contact = "N/A"
-            link = ""
-            note_type_db = "PDF" # Default
-
-            if category == "❓ Question Paper":
-                c1, c2, c3 = st.columns(3)
-                branch = c1.selectbox("Branch", BRANCHES)
-                year = c2.selectbox("Year", ["2023", "2022", "2021", "2020"])
-                exam = c3.selectbox("Exam", ["Semester", "Mid-1", "Mid-2"])
-                title = f"{branch} - {year} - {exam}" # Auto-Title
-                link = st.text_input("Drive Link (PDF)")
-                note_type_db = "PYQ"
-
-            elif category == "🧪 Lab Manual / Viva":
-                doc_type = st.selectbox("Type", ["Lab Record", "Viva Questions"])
-                title = st.text_input("Title", value=f"{doc_type} - {subj}")
-                link = st.text_input("Drive Link (PDF)")
-                note_type_db = "LAB"
-
-            elif category == "📜 Syllabus Copy":
-                branch = st.selectbox("Branch", BRANCHES)
-                reg = st.selectbox("Regulation", ["R22", "R18"])
-                title = f"{branch} - {reg} Syllabus"
-                link = st.text_input("Drive Link (PDF)")
-                note_type_db = "SYLLABUS"
-                subj = "General" # Syllabus is usually general
-
-            elif category == "🖨️ Xerox (Sell)":
-                title = st.text_input("Description (e.g., Full Spiral)")
-                price = st.number_input("Price (₹)", value=100)
-                contact = st.text_input("WhatsApp Number")
-                link = "N/A"
-                note_type_db = "XEROX"
-
-            else: # Digital Note
-                title = st.text_input("Title (e.g., Unit 1 Handwritten)")
-                branch = st.selectbox("Branch", ["All"] + BRANCHES) # Optional tagging
-                if branch != "All":
-                    title += f" ({branch})"
-                link = st.text_input("Drive Link")
-                note_type_db = "PDF"
-
-            submitted = st.form_submit_button("🚀 Upload Resource")
+            # Form Logic
+            title = st.text_input("Title / Description", placeholder="e.g., Unit 1-3 Handwritten Notes")
+            link = st.text_input("Link", placeholder="Google Drive or PDF Link (N/A for Xerox)")
             
-            if submitted:
-                c.execute("INSERT INTO notes (subject, title, link, price, uploader, note_type, contact) VALUES (?,?,?,?,?,?,?)",
-                          (subj, title, link, price, st.session_state["user"], note_type_db, contact))
-                conn.commit()
-                st.success("Uploaded successfully!")
-
-conn.close()
+            # Logic for Xerox Selling
+            c1, c2 = st.columns(2)
+            price = c1.number_input("Price (Set 0 for Free)", value=0)
+            contact = c2.text_input("Contact Number (WhatsApp)", value="91")
+            
+            # Map Category to DB Type
+            db_type_map = {
+                "Digital Note": "PDF", "Lab Manual": "LAB", 
+                "Syllabus Copy": "SYLLABUS", "Question Paper": "PYQ", "Xerox (Sell)": "XEROX"
+            }
+            
+            if st.form_submit_button("🚀 Publish to PEC Market"):
+                if title and (link or cat == "Xerox (Sell)"):
+                    upload_data = {
+                        "subject": sub,
+                        "title": title,
+                        "link": link if link else "N/A",
+                        "price": price,
+                        "uploader": st.session_state["user"],
+                        "note_type": db_type_map[cat],
+                        "contact": contact
+                    }
+                    try:
+                        db.supabase.table("notes").insert(upload_data).execute()
+                        st.success("Successfully Shared with the Campus!")
+                        st.balloons()
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Upload failed: {e}")
+                else:
+                    st.warning("Please fill in the title and link.")
