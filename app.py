@@ -14,9 +14,14 @@ except:
     favicon = "🎓"
 
 # --- PAGE CONFIGURATION ---
+try:
+    favicon = Image.open("favicon.png") # Your personal logo
+except:
+    favicon = "🎓"
+
 st.set_page_config(
-    page_title="PEC Connect | Student Portal",
-    page_icon=favicon,
+    page_title="PEC Connect",
+    page_icon=favicon, # This logo appears on your phone's home screen
     layout="wide",
     initial_sidebar_state="collapsed"
 )
