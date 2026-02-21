@@ -62,8 +62,6 @@ st.markdown(f"""
     [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
     .block-container {{ padding-top: 3rem; padding-bottom: 2rem; }}
 
-    /* --- 🟢 SIDEBAR TOGGLE BUTTON (HIGH VISIBILITY FIX) --- */
-    /* Target the button container */
     [data-testid="stSidebarCollapsedControl"] {{
         background-color: #2563eb !important; /* Bright Blue */
         color: white !important;
@@ -79,14 +77,12 @@ st.markdown(f"""
         z-index: 999999 !important;
     }}
     
-    /* Hover Effect */
     [data-testid="stSidebarCollapsedControl"]:hover {{
         transform: scale(1.1);
         background-color: #1d4ed8 !important; /* Darker Blue */
         box-shadow: 0 6px 15px rgba(37, 99, 235, 0.5) !important;
     }}
     
-    /* The Arrow Icon Itself */
     [data-testid="stSidebarCollapsedControl"] svg {{
         fill: white !important;
         stroke: white !important;
@@ -94,7 +90,6 @@ st.markdown(f"""
         width: 24px !important;
     }}
 
-    /* --- DASHBOARD HEADER (Professional Glass Look) --- */
     .custom-navbar {{
         display: flex; justify-content: space-between; align-items: center;
         background: rgba(255, 255, 255, 0.95); /* Glass Effect */
@@ -112,13 +107,10 @@ st.markdown(f"""
         padding: 4px 12px; border-radius: 20px; font-weight: 700; letter-spacing: 0.5px; margin-left: 10px;
         box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
     }}
-
-    /* --- LOGIN STYLES --- */
     .hero-title {{ font-size: 3.5rem; font-weight: 900; color: #1e293b; line-height: 1.1; margin-bottom: 20px; }}
     .hero-highlight {{ color: #2563eb; }}
     .hero-sub {{ font-size: 1.1rem; color: #64748b; line-height: 1.6; margin-bottom: 30px; font-weight: 400; }}
     
-    /* --- CARDS & STATS --- */
     .hero-box {{
         background: #0f172a; padding: 2.5rem; border-radius: 24px; 
         text-align: center; margin-bottom: 30px; 
@@ -156,8 +148,7 @@ st.markdown(f"""
     .ac-icon {{ font-size: 2.5rem; margin-bottom: 15px; display: block; }}
     .ac-title {{ font-weight: 700; color: #1e293b; margin-bottom: 5px; font-size: 1.1rem; }}
     .ac-desc {{ font-size: 0.85rem; color: #94a3b8; }}
-
-    /* --- FOOTER --- */
+    
     .pro-footer {{
         background: #1e293b; color: #f8fafc; padding: 50px 0; margin-top: 60px;
         border-top: 5px solid #2563eb; text-align: center;
