@@ -3,14 +3,12 @@ import google.generativeai as genai
 from groq import Groq
 import time
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="AI Tutor | PEC",
     page_icon="🧠",
     layout="wide"
 )
 
-# --- PROFESSIONAL UI STYLING (Gemini/ChatGPT Style) ---
 st.markdown("""
 <style>
     /* Main Chat Container */
@@ -53,7 +51,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- JNTUH R24/R22 COMPLETE SYLLABUS LIST ---
 SUBJECTS = {
     "I Year (Freshman)": [
         "Matrices and Calculus (M1)", "ODE & Vector Calculus (M2)", 
@@ -83,8 +80,6 @@ SUBJECTS = {
     ]
 }
 
-# --- INITIALIZE AI ENGINES ---
-# 1. Google Gemini (Primary)
 try:
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -95,7 +90,6 @@ try:
 except:
     st.session_state["gemini_status"] = False
 
-# 2. Groq Llama-3 (Reliable Backup)
 try:
     if "GROQ_API_KEY" in st.secrets:
         groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -105,38 +99,29 @@ try:
 except:
     st.session_state["groq_status"] = False
 
-# --- SMART ROUTING FUNCTION ---
 def ask_ai_engine(prompt, engine_preference="Auto"):
-    """
-    Intelligent switching between Gemini and Groq.
-    """
-    # Attempt 1: Gemini
     if st.session_state["gemini_status"]:
         try:
             response = gemini_model.generate_content(prompt)
             return response.text
         except Exception:
-            pass # Silently failover to Groq
+            pass
 
-    # Attempt 2: Groq (Updated to latest model)
     if st.session_state["groq_status"]:
         try:
             chat_completion = groq_client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model="llama-3.3-70b-versatile", # <--- UPDATED MODEL HERE
+                model="llama-3.3-70b-versatile",
             )
-            # Returning answer without the "Backup" label as requested
             return chat_completion.choices[0].message.content
         except Exception as e:
             return f"❌ System Error: Both AI engines are unreachable. ({e})"
 
     return "❌ API Keys not found. Please check secrets.toml."
 
-# --- SIDEBAR: SETTINGS ---
 with st.sidebar:
     st.title("⚙️ Neural Config")
     
-    # Connection Status
     c1, c2 = st.columns(2)
     with c1:
         status = "active" if st.session_state["gemini_status"] else "inactive"
@@ -147,52 +132,40 @@ with st.sidebar:
         
     st.divider()
 
-    # Tool Selector
     tool_mode = st.selectbox("Select AI Tool", ["💬 AI Tutor", "📝 Strict Examiner", "🎨 Diagram Generator"])
     
     st.divider()
     
-    # Subject Selector
     st.markdown("**📚 Select Subject**")
     year_select = st.selectbox("Year", list(SUBJECTS.keys()), label_visibility="collapsed")
     current_subject = st.selectbox("Subject", SUBJECTS[year_select], label_visibility="collapsed")
     
     st.divider()
     
-    # Exam Mode Toggle
     exam_mode = st.toggle("🔥 Panic Mode (Exam Prep)", value=False, help="Switches AI to give short, bullet-point answers suitable for exams.")
     
-    # Clear Chat
     if st.button("🗑️ Reset Conversation", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-# --- MAIN PAGE HEADER ---
 st.title("🧠 PEC AI Knowledge Engine")
 st.markdown(f'<div class="subtitle">Your 24/7 Personal Professor for <b>{current_subject}</b></div>', unsafe_allow_html=True)
 st.divider()
 
-# ==========================================
-# MODE 1: CHAT TUTOR
-# ==========================================
 if tool_mode == "💬 AI Tutor":
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": f"Hi! I'm ready to help with **{current_subject}**. What topic shall we cover?"}]
 
-    # Render Chat History
     for msg in st.session_state.messages:
         avatar = "🧑‍🎓" if msg["role"] == "user" else "🤖"
         with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
 
-    # Chat Input
     if prompt := st.chat_input(f"Ask about {current_subject}..."):
-        # 1. User Message
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar="🧑‍🎓"):
             st.markdown(prompt)
 
-        # 2. AI Response
         with st.chat_message("assistant", avatar="🤖"):
             with st.spinner("Analyzing..."):
                 tone = "extremely concise, point-wise (Exam Style)" if exam_mode else "detailed, conceptual, with examples"
@@ -213,9 +186,6 @@ if tool_mode == "💬 AI Tutor":
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
 
-# ==========================================
-# MODE 2: STRICT EXAMINER
-# ==========================================
 elif tool_mode == "📝 Strict Examiner":
     st.subheader("📝 Auto-Grader & Improver")
     st.info("Paste an exam question and your answer. I will grade it like a strict external examiner.")
@@ -249,9 +219,6 @@ elif tool_mode == "📝 Strict Examiner":
         else:
             st.warning("Please provide both the question and your answer.")
 
-# ==========================================
-# MODE 3: DIAGRAM GENERATOR
-# ==========================================
 elif tool_mode == "🎨 Diagram Generator":
     st.subheader("🎨 Engineering Diagram Generator")
     st.caption("Generate Flowcharts, Block Diagrams, and Mind Maps instantly.")
@@ -270,7 +237,6 @@ elif tool_mode == "🎨 Diagram Generator":
             
             res = ask_ai_engine(dia_prompt)
             
-            # Extract and Render Code
             try:
                 if "```dot" in res:
                     code = res.split("```dot")[1].split("```")[0].strip()

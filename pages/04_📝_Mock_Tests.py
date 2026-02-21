@@ -5,7 +5,6 @@ import datetime
 
 st.set_page_config(page_title="Exam Simulator", page_icon="📝", layout="wide")
 
-# --- 🎨 PROFESSIONAL STYLING ---
 st.markdown("""
 <style>
     /* 1. Exam Header */
@@ -39,12 +38,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SESSION STATE ---
 if "quiz_data" not in st.session_state: st.session_state.quiz_data = []
 if "user_answers" not in st.session_state: st.session_state.user_answers = {}
 if "submitted" not in st.session_state: st.session_state.submitted = False
 
-# --- 🛠️ PARSER LOGIC ---
 def parse_quiz(text):
     questions = []
     raw_qs = text.split('### Q')[1:]
@@ -76,11 +73,9 @@ def parse_quiz(text):
         except: continue
     return questions
 
-# --- SIDEBAR DASHBOARD ---
 with st.sidebar:
     st.subheader("⚙️ Exam Configuration")
     
-    # Updated Subject List based on JNTUH R24 / PR24 Syllabus
     subject = st.selectbox(
         "Select Subject", 
         [
@@ -115,7 +110,6 @@ with st.sidebar:
     else:
         st.success(f"📅 {days} Days to prepare.")
 
-# --- MAIN PAGE ---
 st.markdown(f"""
 <div class="exam-header">
     <div>
@@ -129,11 +123,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 1. GENERATE BUTTON
 if st.button("⚡ Generate New Question Paper", type="primary", use_container_width=True):
     with st.spinner(f"🤖 Analyzing {subject} syllabus (R24) & drafting questions..."):
         try:
-            # We explicitly add 'R24 regulation' to the prompt in ai_engine logic
             raw_text = ai.generate_mock_test(f"{subject} (JNTUH R24 Regulation)", difficulty)
             
             if raw_text:
@@ -146,7 +138,6 @@ if st.button("⚡ Generate New Question Paper", type="primary", use_container_wi
         except Exception as e:
             st.error(f"Error: {e}")
 
-# 2. EXAM INTERFACE
 if st.session_state.quiz_data:
     with st.form("exam_form"):
         for i, q in enumerate(st.session_state.quiz_data):
@@ -183,7 +174,6 @@ if st.session_state.quiz_data:
         else:
             st.form_submit_button("Result Generated Below 👇", disabled=True)
 
-    # 3. SCORECARD
     if st.session_state.submitted:
         score = 0
         for i, q in enumerate(st.session_state.quiz_data):
@@ -202,7 +192,6 @@ if st.session_state.quiz_data:
             else:
                 st.error("⚠️ Needs Improvement. Download the solutions.")
 
-        # Text File Generation
         paper_content = f"""
 ============================================================
               PALLAVI ENGINEERING COLLEGE

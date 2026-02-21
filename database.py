@@ -1,10 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
 import hashlib
-
-# ==========================================
-# 🔌 CONNECT TO SUPABASE
-# ==========================================
 @st.cache_resource
 def init_connection():
     try:
@@ -19,10 +15,6 @@ supabase: Client = init_connection()
 
 def init_db():
     pass
-
-# ==========================================
-# 👤 USER & AUTH
-# ==========================================
 def add_user(username, password, role, year, full_name="", email=""):
     try:
         exists = supabase.table("users").select("username").eq("username", username).execute()
@@ -62,10 +54,6 @@ def search_users(query):
     try:
         return supabase.table("users").select("*").or_(f"full_name.ilike.%{query}%,username.ilike.%{query}%,skills.ilike.%{query}%").execute().data
     except: return []
-
-# ==========================================
-# 🖼️ AVATAR & STORAGE (OPTIMIZED)
-# ==========================================
 def update_avatar(username, file_bytes, file_type):
     """
     Uploads image to Supabase Storage Bucket and saves the URL.
@@ -73,24 +61,17 @@ def update_avatar(username, file_bytes, file_type):
     try:
         file_ext = file_type.split("/")[-1]
         file_path = f"{username}_avatar.{file_ext}"
-        
-        # 1. Upload to 'avatars' bucket
         supabase.storage.from_("avatars").upload(
             file_path, 
             file_bytes, 
             {"content-type": file_type, "upsert": "true"}
         )
-        
-        # 2. Get Public URL
         public_url = supabase.storage.from_("avatars").get_public_url(file_path)
-        
-        # 3. Save URL to DB
         supabase.table("users").update({"avatar": public_url}).eq("username", username).execute()
         return True
     except Exception as e:
         print(f"Upload Error: {e}")
         return False
-
 def get_user_avatar(username):
     """Returns the raw avatar field (URL or Base64)"""
     try:
@@ -106,18 +87,11 @@ def get_avatar_url(username):
     try:
         raw = get_user_avatar(username)
         if raw:
-            # If it's a Cloud URL or valid Base64
             if "http" in str(raw): return raw
             if len(str(raw)) > 100: return f"data:image/png;base64,{raw}"
-        
-        # Default Fallback
         return f"https://api.dicebear.com/7.x/identicon/svg?seed={username}"
     except:
         return f"https://api.dicebear.com/7.x/identicon/svg?seed={username}"
-
-# ==========================================
-# 🌐 NETWORK & MESSAGING
-# ==========================================
 def get_connection_status(sender, receiver):
     try:
         res = supabase.table("connections").select("status").or_(
@@ -160,10 +134,6 @@ def get_chat_history(user1, user2):
             f"and(sender_username.eq.{user1},receiver_username.eq.{user2}),and(sender_username.eq.{user2},receiver_username.eq.{user1})"
         ).order("created_at", desc=False).execute().data
     except: return []
-
-# ==========================================
-# 👥 STUDY GROUPS & FORUM
-# ==========================================
 def get_all_rooms():
     try:
         res = supabase.table("study_rooms").select("room_name").execute()
@@ -218,10 +188,6 @@ def mark_solved(q_id):
         supabase.table("forum_questions").update({"is_solved": True}).eq("id", q_id).execute()
         return True
     except: return False
-
-# ==========================================
-# 🎓 ACADEMICS (TESTS, MENTORS, NOTES)
-# ==========================================
 def get_user_test_history(username):
     try: return supabase.table("test_results").select("*").eq("username", username).execute().data
     except: return []

@@ -3,9 +3,6 @@ from groq import Groq
 import streamlit as st
 import random
 
-# ------------------------------------------------------------------
-# ⚡ GROQ ENGINE (Secure)
-# ------------------------------------------------------------------
 if "GROQ_API_KEY" in st.secrets:
     api_key = st.secrets["GROQ_API_KEY"]
 else:
@@ -19,25 +16,22 @@ def get_groq_response(system_prompt, user_prompt):
                       {"role": "user", "content": user_prompt}],
             model="llama-3.3-70b-versatile",
             temperature=0.5, 
-            max_tokens=3000, # Increased for detailed answers
+            max_tokens=3000,
         )
         return completion.choices[0].message.content
     except Exception as e:
         return f"Error: {str(e)}"
 
 def generate_mock_test(subject, difficulty):
-    # Dynamic Rules
     if difficulty == "Easy":
         marks = "2 Marks"
         depth = "Short Answer / Definition"
     elif difficulty == "Medium":
         marks = "5 Marks"
         depth = "Problem Solving / Derivation Steps"
-    else: # Hard
+    else:
         marks = "10 Marks"
         depth = "Complex GATE Level / Long Answer Proof"
-
-    # Randomize Years to prevent repetition
     years = ["2025", "2024", "2023", "2022", "2021", "2020", "2019", "2018"]
     random.shuffle(years)
     

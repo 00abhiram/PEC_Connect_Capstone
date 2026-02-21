@@ -7,29 +7,25 @@ from datetime import datetime
 from streamlit_lottie import st_lottie
 from PIL import Image
 
-# --- LOAD ASSETS ---
 try:
     favicon = Image.open("favicon.png")
 except:
     favicon = "🎓"
 
-# --- PAGE CONFIGURATION ---
 try:
-    favicon = Image.open("favicon.png") # Your personal logo
+    favicon = Image.open("favicon.png")
 except:
     favicon = "🎓"
 
 st.set_page_config(
     page_title="PEC Connect",
-    page_icon=favicon, # This logo appears on your phone's home screen
+    page_icon=favicon,
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Initialize Cloud DB
 db.init_db()
 
-# --- HELPERS ---
 def get_base64_image(image_path):
     if os.path.exists(image_path):
         with open(image_path, "rb") as img_file:
@@ -42,27 +38,17 @@ def get_current_avatar():
     Handles Cloud URLs (New) and Base64 (Old) automatically.
     """
     if "user" in st.session_state:
-        # 1. Fetch raw data from DB
         avatar_data = db.get_user_avatar(st.session_state["user"])
         
         if avatar_data:
-            # CASE A: It is a Cloud Storage URL (starts with http) -> Return as is
             if "http" in str(avatar_data):
                 return avatar_data
-            
-            # CASE B: It is an old Base64 string -> Format it
             if len(str(avatar_data)) > 100:
                 return f"data:image/png;base64,{avatar_data}"
-        
-        # CASE C: No avatar found -> Use Default Dicebear
         return f"https://api.dicebear.com/7.x/identicon/svg?seed={st.session_state['user']}"
     return None
-
-# Load Assets
 app_logo_b64 = get_base64_image("favicon.png")
 college_banner_b64 = get_base64_image("pec_logo.png")
-
-# --- 🎨 PROFESSIONAL CSS ---
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
@@ -184,10 +170,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- UI LOGIC ---
-
 if "user" not in st.session_state:
-    # === SCENE 1: THE SPLIT LOGIN ===
     st.markdown("<br>", unsafe_allow_html=True)
     c_left, c_mid, c_right = st.columns([1.3, 0.1, 1])
     
@@ -205,7 +188,6 @@ if "user" not in st.session_state:
         """, unsafe_allow_html=True)
 
     with c_right:
-        # LOGIN CARD
         with st.container(border=True):
             if app_logo_b64:
                 st.markdown(f"""
@@ -255,9 +237,6 @@ if "user" not in st.session_state:
                         st.warning("All fields marked * are required.")
 
 else:
-    # === SCENE 2: PRO DASHBOARD ===
-    
-    # 1. NAVBAR (Enhanced)
     avatar_img = get_current_avatar()
     logo_tag = f'<img src="data:image/png;base64,{app_logo_b64}" class="nav-logo">' if app_logo_b64 else '🎓'
     
@@ -278,12 +257,8 @@ else:
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # 2. HERO BANNER
     hero_content = f'<img src="data:image/png;base64,{college_banner_b64}" class="hero-college-img">' if college_banner_b64 else "<h1>PALLAVI ENGINEERING COLLEGE</h1>"
     st.markdown(f"""<div class="hero-box">{hero_content}</div>""", unsafe_allow_html=True)
-
-    # 3. NOTICE BOARD
     today = datetime.now().strftime("%d %b, %Y")
     st.markdown(f"""
     <div class="notice-box">
@@ -294,15 +269,12 @@ else:
         <div style="font-size: 0.85rem; font-weight: 700; background: rgba(255,255,255,0.5); padding: 4px 10px; border-radius: 8px;">{today}</div>
     </div>
     """, unsafe_allow_html=True)
-
-    # 4. STATS
     try:
         n_users = db.supabase.table("users").select("*", count="exact").execute().count
         n_notes = db.supabase.table("notes").select("*", count="exact").execute().count
     except:
-        n_users = 120 # Fallback
+        n_users = 120
         n_notes = 45
-
     st.markdown("### 📊 Overview")
     st.markdown(f"""
     <div class="stat-row">
@@ -324,8 +296,6 @@ else:
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # 5. ACTION GRID
     st.markdown("### 🚀 Launchpad")
     
     c1, c2, c3, c4 = st.columns(4)
@@ -345,8 +315,6 @@ else:
     with c4:
         st.markdown('<div class="action-card"><div class="ac-icon">📝</div><div class="ac-title">Mock Tests</div><div class="ac-desc">Practice Exams</div></div>', unsafe_allow_html=True)
         if st.button("Take Test", use_container_width=True): st.switch_page("pages/04_📝_Mock_Tests.py")
-
-    # 6. PROFESSIONAL FOOTER
     st.markdown("""
     <div class="pro-footer">
         <div class="footer-brand">PEC CONNECT</div>

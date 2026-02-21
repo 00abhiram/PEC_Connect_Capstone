@@ -2,13 +2,10 @@ import streamlit as st
 import database as db
 import time
 
-# --- PAGE SETUP ---
 st.set_page_config(page_title="Resources | PEC", page_icon="📚", layout="wide")
 
-# Initialize DB connection (Uses your Supabase setup)
 db.init_db()
 
-# --- PROFESSIONAL CSS ---
 st.markdown("""
 <style>
     .resource-card {
@@ -33,19 +30,16 @@ st.markdown("""
 st.title("📚 PEC Resource Center")
 st.caption("Access verified study materials, lab manuals, and previous papers.")
 
-# --- HELPERS ---
 BRANCHES = ["CSE", "CSE-AIML", "ECE", "EEE", "Civil", "Mech", "IT"]
 SUBJECT_LIST = ["M1", "M2", "BEE", "Chemistry", "Physics", "Python", "Data Structures", "OS", "DBMS", "AI/ML", "General"]
 
 def delete_resource(note_id):
-    """Deletes a note from Supabase"""
     try:
         db.supabase.table("notes").delete().eq("id", note_id).execute()
         return True
     except:
         return False
 
-# --- NAVIGATION TABS ---
 tabs = st.tabs([
     "📄 Digital Notes", 
     "🧪 Lab & Viva",
@@ -55,16 +49,11 @@ tabs = st.tabs([
     "📤 Upload / Sell"
 ])
 
-# ==========================================
-# TAB 1: DIGITAL NOTES (PDFs)
-# ==========================================
 with tabs[0]:
     st.subheader("📖 Free Digital Notes")
     c1, c2 = st.columns(2)
     s_query = c1.text_input("Search Subject", key="search_pdf")
     f_branch = c2.selectbox("Branch", ["All"] + BRANCHES, key="filt_pdf")
-    
-    # Query Supabase
     try:
         res = db.supabase.table("notes").select("*").eq("note_type", "PDF")
         if f_branch != "All": res = res.ilike("title", f"%{f_branch}%")
@@ -90,10 +79,6 @@ with tabs[0]:
                                 time.sleep(1)
                                 st.rerun()
 
-# ==========================================
-# TAB 2 & 3 & 4: Lab / Syllabus / PYQ
-# ==========================================
-# (Applying similar logic for these tabs using the Supabase data structure)
 types = {"🧪 Lab Manuals": "LAB", "📜 Syllabus": "SYLLABUS", "❓ PYQs": "PYQ"}
 for idx, (label, db_type) in enumerate(types.items(), start=1):
     with tabs[idx]:
@@ -116,9 +101,6 @@ for idx, (label, db_type) in enumerate(types.items(), start=1):
                             delete_resource(i['id'])
                             st.rerun()
 
-# ==========================================
-# TAB 5: XEROX MARKET (Selling Hard Copies)
-# ==========================================
 with tabs[4]:
     st.subheader("🖨️ Buy Hard Copy Xerox")
     try:
@@ -140,7 +122,6 @@ with tabs[4]:
                     wa_link = f"https://wa.me/{item['contact']}?text=Hi, I want to buy {item['title']} notes."
                     st.link_button("💬 WhatsApp Seller", wa_link, type="primary", use_container_width=True)
                     
-                    # Delete Option for Seller
                     if "user" in st.session_state and st.session_state["user"] == item['uploader']:
                         st.write("")
                         if st.button("🗑️ Mark as Sold", key=f"sold_{item['id']}", use_container_width=True):
@@ -148,9 +129,6 @@ with tabs[4]:
                             st.success("Listing Removed!")
                             st.rerun()
 
-# ==========================================
-# TAB 6: UPLOAD RESOURCE
-# ==========================================
 with tabs[5]:
     st.subheader("📤 Contribute a Resource")
     if "user" not in st.session_state:
@@ -160,16 +138,13 @@ with tabs[5]:
             cat = st.selectbox("Category", ["Digital Note", "Lab Manual", "Syllabus Copy", "Question Paper", "Xerox (Sell)"])
             sub = st.selectbox("Subject", SUBJECT_LIST)
             
-            # Form Logic
             title = st.text_input("Title / Description", placeholder="e.g., Unit 1-3 Handwritten Notes")
             link = st.text_input("Link", placeholder="Google Drive or PDF Link (N/A for Xerox)")
             
-            # Logic for Xerox Selling
             c1, c2 = st.columns(2)
             price = c1.number_input("Price (Set 0 for Free)", value=0)
             contact = c2.text_input("Contact Number (WhatsApp)", value="91")
             
-            # Map Category to DB Type
             db_type_map = {
                 "Digital Note": "PDF", "Lab Manual": "LAB", 
                 "Syllabus Copy": "SYLLABUS", "Question Paper": "PYQ", "Xerox (Sell)": "XEROX"

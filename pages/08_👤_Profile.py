@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Profile", page_icon="👤", layout="wide")
 db.init_db()
 
-# --- CSS FOR CLEAN LOOK & BADGES ---
 st.markdown("""
 <style>
     /* AVATAR STYLING */
@@ -53,7 +52,6 @@ if "user" not in st.session_state:
     st.warning("Please Login.")
     st.stop()
 
-# --- LOGIC ---
 current_user = st.session_state["user"]
 target_user = st.session_state.get("viewing_user", current_user)
 
@@ -65,8 +63,6 @@ is_me = (current_user == target_user)
 user_data = db.get_user_details(target_user)
 if not user_data: st.error("User not found."); st.stop()
 
-# --- PREPARE DATA ---
-# UPDATED: Use the new Smart Avatar Function from database.py
 avatar_src = db.get_avatar_url(target_user)
 
 fullname = user_data.get('full_name', target_user)
@@ -74,9 +70,6 @@ headline = user_data.get('headline', "Student")
 about_text = user_data.get('about_text', "No bio yet.")
 verified_skills = db.get_verified_skills(target_user)
 
-# ==========================================
-# 1. HEADER SECTION
-# ==========================================
 st.write("") 
 c_img, c_info = st.columns([1.5, 4])
 
@@ -84,7 +77,6 @@ with c_img:
     st.image(avatar_src, width=180)
 
 with c_info:
-    # Row A: Handle + Buttons
     c_head, c_btn = st.columns([2, 2])
     with c_head:
         st.markdown(f'<div class="user-handle">@{target_user} <span style="color:#3b82f6; font-size:1rem;">✅</span></div>', unsafe_allow_html=True)
@@ -108,7 +100,6 @@ with c_info:
                             "github_url": n_gh
                         }
                         
-                        # UPDATED: Upload to Storage Bucket instead of saving Base64 string
                         if n_pic:
                             file_bytes = n_pic.getvalue()
                             file_type = n_pic.type
@@ -130,21 +121,18 @@ with c_info:
                     db.send_connection_request(current_user, target_user)
                     st.rerun()
 
-    # Row B: Stats
     st.markdown("<br>", unsafe_allow_html=True)
     c_s1, c_s2, c_s3 = st.columns(3)
     c_s1.markdown(f'<div class="stat-box"><div class="stat-val">{user_data.get("points", 0)}</div><div class="stat-lbl">Points</div></div>', unsafe_allow_html=True)
     c_s2.markdown(f'<div class="stat-box"><div class="stat-val">{user_data.get("streak", 0)} 🔥</div><div class="stat-lbl">Streak</div></div>', unsafe_allow_html=True)
     c_s3.markdown(f'<div class="stat-box"><div class="stat-val">{user_data.get("year", "1st")}</div><div class="stat-lbl">Year</div></div>', unsafe_allow_html=True)
 
-    # Row C: Verified Skills
     if verified_skills:
         st.markdown("<div style='margin-top:10px;'>", unsafe_allow_html=True)
         for skill in verified_skills:
             st.markdown(f"<span class='verified-skill'>🏆 {skill} Expert</span>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Row D: Bio
     st.markdown(f'<div style="font-weight:600; margin-top:10px;">{fullname}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="bio-text">{about_text}</div>', unsafe_allow_html=True)
     
@@ -154,15 +142,11 @@ with c_info:
 
 st.divider()
 
-# ==========================================
-# 2. CONTENT TABS
-# ==========================================
 t_labels = ["📊 Skill Radar", "📚 Shared Notes"]
 if is_me: t_labels.append("🔔 Requests")
 
 tabs = st.tabs(t_labels)
 
-# TAB 1: RADAR CHART
 with tabs[0]:
     tests = db.get_user_test_history(target_user)
     if tests:
@@ -177,7 +161,6 @@ with tabs[0]:
     else:
         st.info("Take a mock test to unlock your Skill Radar!")
 
-# TAB 2: MY NOTES
 with tabs[1]:
     user_notes = db.get_user_notes(target_user)
     
@@ -197,7 +180,6 @@ with tabs[1]:
                 </div>
                 """, unsafe_allow_html=True)
 
-# TAB 3: REQUESTS (Me Only)
 if is_me and len(tabs) > 2:
     with tabs[2]:
         reqs = db.get_pending_requests(current_user)

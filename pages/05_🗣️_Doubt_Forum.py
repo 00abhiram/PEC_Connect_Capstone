@@ -3,13 +3,10 @@ import database as db
 from datetime import datetime
 import time
 
-# Initialize DB
 db.init_db()
 
-# --- PAGE CONFIG ---
 st.set_page_config(page_title="Doubt Forum", page_icon="🗣️", layout="wide")
 
-# --- CUSTOM CSS (Facebook/Reddit Style) ---
 st.markdown("""
 <style>
     /* Question Card */
@@ -43,7 +40,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- HELPER: RELATIVE TIME ---
 def get_relative_time(date_str):
     try:
         dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
@@ -58,7 +54,6 @@ def get_relative_time(date_str):
     except:
         return "Recently"
 
-# --- MAIN HEADER ---
 c1, c2 = st.columns([3, 1])
 with c1:
     st.title("🗣️ PEC Community Forum")
@@ -67,7 +62,6 @@ with c2:
     if "user" in st.session_state:
         st.markdown(f"<div style='text-align:right; color:#16a34a; font-weight:bold; padding-top:20px;'>● Online: {st.session_state['user']}</div>", unsafe_allow_html=True)
 
-# --- FILTER BAR ---
 SUBJECTS = ["All", "M1 (Matrices)", "M2 (ODE)", "Engineering Chemistry", "Applied Physics", "PPS (C Programming)", "BEE (Basic Electrical)", "Python Programming", "Java (OOPs)", "General"]
 
 col_search, col_filter, col_sort = st.columns([2, 2, 1])
@@ -78,16 +72,11 @@ with col_filter:
 with col_sort:
     sort_order = st.selectbox("Sort", ["Newest", "Most Voted"], label_visibility="collapsed")
 
-# --- TABS ---
 tab1, tab2 = st.tabs(["🔥 Browse Discussions", "✍️ Ask a Question"])
 
-# ==========================================
-# TAB 1: THE FEED
-# ==========================================
 with tab1:
     questions = db.get_questions(filter_subject)
     
-    # Filters
     if search_query:
         questions = [q for q in questions if search_query.lower() in q['question_text'].lower()]
     if sort_order == "Most Voted":
@@ -105,16 +94,12 @@ with tab1:
             q_votes = q.get('upvotes', 0)
             is_solved = q.get('is_solved', False)
             
-            # 1. Get Real Avatar (UPDATED: Uses database.py smart function)
             avatar_url = db.get_avatar_url(q_user)
 
-            # --- RENDER CARD ---
             with st.container(border=True):
-                # Header: Avatar + Name + Tags
                 c_img, c_meta, c_tag = st.columns([0.5, 4, 1.5])
                 
                 with c_img:
-                    # using st.image allows it to be zoomable
                     st.image(avatar_url, width=40) 
                 
                 with c_meta:
@@ -129,12 +114,10 @@ with tab1:
                     solved_html = '<span class="solved-badge">✅ SOLVED</span>' if is_solved else ''
                     st.markdown(f'<div style="text-align:right;"><span class="topic-tag">{q_sub}</span>{solved_html}</div>', unsafe_allow_html=True)
                 
-                # Question Text
                 st.markdown(f"#### {q_text}")
                 
                 st.divider()
                 
-                # Action Bar
                 c_vote, c_reply, c_space = st.columns([1, 2, 5])
                 
                 with c_vote:
@@ -142,12 +125,10 @@ with tab1:
                         db.upvote_question(q_id)
                         st.rerun()
 
-                # Answers Logic
                 answers = db.get_answers(q_id)
                 with c_reply:
                     st.caption(f"💬 {len(answers)} replies")
                 
-                # Expand to see answers
                 with st.expander("View Discussion"):
                     if answers:
                         for ans in answers:
@@ -155,7 +136,6 @@ with tab1:
                             a_text = ans['answer_text']
                             a_time = get_relative_time(ans['timestamp'])
                             
-                            # UPDATED: Get real avatar for answerer
                             a_av = db.get_avatar_url(a_user) 
                             
                             c_a_img, c_a_txt = st.columns([0.5, 11])
@@ -173,7 +153,6 @@ with tab1:
                     else:
                         st.info("No answers yet.")
 
-                    # Reply Form
                     if "user" in st.session_state:
                         with st.form(key=f"rep_{q_id}"):
                             new_reply = st.text_area("Write a solution...", height=100, placeholder="Use markdown or ```code``` blocks")
@@ -183,15 +162,11 @@ with tab1:
                                     st.toast("Answer posted!")
                                     st.rerun()
                         
-                        # Solved Button (Owner Only)
                         if st.session_state["user"] == q_user and not is_solved:
                             if st.button("✅ Mark Solved", key=f"sol_{q_id}"):
                                 db.mark_solved(q_id)
                                 st.rerun()
 
-# ==========================================
-# TAB 2: ASK A QUESTION
-# ==========================================
 with tab2:
     st.markdown("### 📝 Ask the Community")
     
@@ -202,7 +177,7 @@ with tab2:
             st.info("💡 **Tip:** Use triple backticks (```) for code blocks!")
             
             with st.form("ask_form"):
-                subj = st.selectbox("Subject", SUBJECTS[1:]) # Skip "All"
+                subj = st.selectbox("Subject", SUBJECTS[1:])
                 q_body = st.text_area("Describe your doubt...", height=200, 
                                     placeholder="Example:\nI am getting an error in my Python code:\n\n```python\nprint('Hello World')\n```")
                 

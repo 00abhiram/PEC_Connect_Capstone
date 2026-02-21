@@ -4,7 +4,6 @@ import database as db
 st.set_page_config(page_title="Network", page_icon="🌐", layout="wide")
 db.init_db()
 
-# --- PROFESSIONAL CARD CSS ---
 st.markdown("""
 <style>
     .net-card {
@@ -27,12 +26,10 @@ st.markdown("""
 
 st.title("🌐 Campus Network")
 
-# --- FILTERS ---
 c_search, c_filt = st.columns([3, 1])
 search = c_search.text_input("🔍 Search Students", placeholder="Search by name, skill, or roll no...")
 role_filter = c_filt.selectbox("Filter", ["All", "Student", "Mentor"])
 
-# --- DATA ---
 users = db.search_users(search) if search else db.get_leaderboard()
 if role_filter != "All": users = [u for u in users if u.get('role') == role_filter]
 if "user" in st.session_state: users = [u for u in users if u.get('username') != st.session_state["user"]]
@@ -40,7 +37,7 @@ if "user" in st.session_state: users = [u for u in users if u.get('username') !=
 if not users:
     st.info("No users found.")
 else:
-    cols = st.columns(4) # 4 Cards per row for cleaner look
+    cols = st.columns(4) 
     
     for i, user in enumerate(users):
         with cols[i % 4]:
@@ -48,10 +45,8 @@ else:
             fname = user.get('full_name', uname)
             role = user.get('role', 'Student')
             
-            # UPDATED: Use the new Smart Avatar Function from database.py
             av = db.get_avatar_url(uname)
             
-            # 1. Visual Card
             st.markdown(f"""
             <div class="net-card">
                 <img src="{av}" class="net-avatar">
@@ -60,11 +55,9 @@ else:
             </div>
             """, unsafe_allow_html=True)
             
-            # 2. Logic Buttons
             if "user" in st.session_state:
                 status = db.get_connection_status(st.session_state["user"], uname)
                 
-                # We use columns inside the grid column to place buttons
                 b1, b2 = st.columns(2)
                 with b1:
                     if status == 'accepted':

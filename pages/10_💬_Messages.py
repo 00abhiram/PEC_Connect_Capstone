@@ -8,12 +8,8 @@ db.init_db()
 if "user" not in st.session_state:
     st.warning("Please Login.")
     st.stop()
-
-# Get Chat Partner
 partner = st.session_state.get("chat_with")
 me = st.session_state["user"]
-
-# --- WHATSAPP STYLE CSS ---
 st.markdown("""
 <style>
     .chat-container {
@@ -61,8 +57,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 c1, c2 = st.columns([1, 3])
-
-# SIDEBAR: INBOX
 with c1:
     st.subheader("📥 Inbox")
     if st.button("⬅️ Find People", use_container_width=True):
@@ -74,29 +68,23 @@ with c1:
     else:
         st.caption("Select a friend from the Network page to start chatting.")
 
-# MAIN CHAT AREA
 with c2:
     if not partner:
         st.image("https://cdn-icons-png.flaticon.com/512/1041/1041916.png", width=100)
         st.markdown("### Select a conversation")
     else:
-        # 1. Chat Header
         st.markdown(f"""
         <div class="chat-header">
             <h3>@{partner}</h3>
         </div>
         """, unsafe_allow_html=True)
-        
-        # 2. Fetch Messages
         msgs = db.get_chat_history(me, partner)
-        
-        # 3. Message Display Area
         with st.container(height=450):
             for m in msgs:
                 is_me = m['sender_username'] == me
                 css_class = "msg-me" if is_me else "msg-other"
                 align = "right" if is_me else "left"
-                time_str = m['created_at'][11:16] # Extract HH:MM
+                time_str = m['created_at'][11:16]
                 
                 st.markdown(f"""
                 <div style="display: flex; justify-content: {align};">
@@ -106,8 +94,6 @@ with c2:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-
-        # 4. Input Area (Fixed at bottom vibe)
         with st.form("chat_input", clear_on_submit=True):
             c_in, c_btn = st.columns([6, 1])
             text = c_in.text_input("Message...", placeholder="Type a message...", label_visibility="collapsed")

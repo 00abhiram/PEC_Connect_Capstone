@@ -1,11 +1,9 @@
 import streamlit as st
 import database as db
 
-# --- PAGE CONFIG ---
 st.set_page_config(page_title="Leaderboard", page_icon="🏆", layout="wide")
 db.init_db()
 
-# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
@@ -53,7 +51,6 @@ st.markdown("""
 st.markdown("<h1 style='text-align: center;'>🏆 Champions League</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #64748b;'>Compete with the best minds at PEC</p>", unsafe_allow_html=True)
 
-# --- FETCH DATA ---
 top_students = db.get_leaderboard()
 
 def get_league(points):
@@ -65,16 +62,14 @@ def get_league(points):
 if not top_students:
     st.info("No champions yet. Be the first!")
 else:
-    # --- 1. THE PODIUM (Top 3 Visuals) ---
     u1 = top_students[0] if len(top_students) > 0 else None
     u2 = top_students[1] if len(top_students) > 1 else None
     u3 = top_students[2] if len(top_students) > 2 else None
 
     html_code = '<div class="podium-container">'
     
-    # Rank 2
     if u2:
-        av2 = db.get_avatar_url(u2['username']) # FIX: Use DB helper
+        av2 = db.get_avatar_url(u2['username']) 
         html_code += f"""
         <div class="podium-place p-2">
             <img src="{av2}" class="avatar-circle">
@@ -83,9 +78,8 @@ else:
             <p>{u2['points']} pts</p>
         </div>"""
     
-    # Rank 1
     if u1:
-        av1 = db.get_avatar_url(u1['username']) # FIX: Use DB helper
+        av1 = db.get_avatar_url(u1['username']) 
         html_code += f"""
         <div class="podium-place p-1">
             <div class="crown">👑</div>
@@ -95,9 +89,8 @@ else:
             <p>{u1['points']} pts</p>
         </div>"""
         
-    # Rank 3
     if u3:
-        av3 = db.get_avatar_url(u3['username']) # FIX: Use DB helper
+        av3 = db.get_avatar_url(u3['username'])
         html_code += f"""
         <div class="podium-place p-3">
             <img src="{av3}" class="avatar-circle">
@@ -109,13 +102,11 @@ else:
     html_code += '</div>'
     st.markdown(html_code, unsafe_allow_html=True)
 
-    # --- 2. THE LEADERBOARD LIST (Rank 4+) ---
     st.write("---")
     
     search = st.text_input("🔍 Find a student...", placeholder="Enter username")
     filtered_list = [s for s in top_students if search.lower() in s['username'].lower()] if search else top_students
 
-    # Table Header
     c1, c2, c3, c4 = st.columns([0.5, 3, 2, 1])
     c1.markdown("**Rank**")
     c2.markdown("**Student**")
@@ -130,7 +121,6 @@ else:
         league_name = get_league(user['points'])
         l_style = "diamond" if "DIAMOND" in league_name else "gold" if "GOLD" in league_name else "silver"
         
-        # FIX: Get correct avatar for list items
         list_av = db.get_avatar_url(user['username'])
 
         with st.container():

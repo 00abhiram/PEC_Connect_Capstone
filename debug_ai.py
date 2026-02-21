@@ -1,7 +1,5 @@
 import google.generativeai as genai
 import streamlit as st
-
-# 1. Load the key directly from the secrets file
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     print(f"✅ Found API Key: {api_key[:5]}...{api_key[-5:]}") # Prints first/last 5 chars
@@ -9,8 +7,6 @@ try:
 except Exception as e:
     print(f"❌ Error loading Key: {e}")
     exit()
-
-# 2. Ask Google which models are available
 print("\n🔍 Checking available models...")
 try:
     found_any = False
