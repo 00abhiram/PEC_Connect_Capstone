@@ -562,11 +562,18 @@ else:
                         st.error("Passwords do not match!")
                 else:
                     st.warning("Please fill both fields")
-            
-            st.markdown("---")
-            
-            # Review Notification Requests
-            st.markdown("### 📢 Review Notification Requests")
+        
+        # Create Alert - outside the settings expander
+        with st.expander("🛡️ Admin - Create Alert Notification"):
+            new_alert = st.text_area("Alert Message")
+            if st.button("Post Alert"):
+                if new_alert:
+                    db.create_alert(new_alert)
+                    st.success("Alert posted!")
+                    st.rerun()
+        
+        # Review Notification Requests - outside the settings expander
+        with st.expander("📢 Review Notification Requests"):
             requests = db.get_notification_requests()
             pending_requests = [r for r in requests if r.get('status') == 'pending']
             
@@ -607,28 +614,18 @@ else:
                 for req in requests[:10]:
                     status_color = "🟡" if req.get('status') == 'pending' else "🟢" if req.get('status') == 'approved' else "🔴"
                     st.markdown(f"- {status_color} **{req.get('title')}** - {req.get('status')} (by {req.get('requested_by')})")
-            
-            st.markdown("---")
-            
-            with st.expander("🛡️ Admin - Create Alert Notification"):
-                new_alert = st.text_area("Alert Message")
-                if st.button("Post Alert"):
-                    if new_alert:
-                        db.create_alert(new_alert)
-                        st.success("Alert posted!")
+        
+        # Delete alerts
+        if alerts:
+            st.markdown("### Existing Alerts")
+            for alert in alerts:
+                c1, c2 = st.columns([4, 1])
+                with c1:
+                    st.markdown(f"📢 {alert.get('message', '')}")
+                with c2:
+                    if st.button("Delete", key=f"del_alert_{alert.get('id')}"):
+                        db.delete_alert(alert.get('id'))
                         st.rerun()
-            
-            # Delete alerts
-            if alerts:
-                st.markdown("### Existing Alerts")
-                for alert in alerts:
-                    c1, c2 = st.columns([4, 1])
-                    with c1:
-                        st.markdown(f"📢 {alert.get('message', '')}")
-                    with c2:
-                        if st.button("Delete", key=f"del_alert_{alert.get('id')}"):
-                            db.delete_alert(alert.get('id'))
-                            st.rerun()
     
     # Stats
     try:

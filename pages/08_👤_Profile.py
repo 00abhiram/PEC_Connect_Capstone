@@ -317,10 +317,12 @@ with col_main:
                     if st.form_submit_button("Cancel", use_container_width=True):
                         st.rerun()
             
+            # Delete Account - outside the form
+            st.markdown("---")
             with st.expander("🗑️ Delete Account", expanded=False):
                 st.error("This action cannot be undone!")
-                if st.checkbox("I understand this is irreversible"):
-                    if st.button("Delete My Account", type="primary"):
+                if st.checkbox("I understand this is irreversible", key="delete_check"):
+                    if st.button("Delete My Account", type="primary", key="delete_btn"):
                         if db.delete_user_data(current_user):
                             st.success("Account deleted!")
                             for key in list(st.session_state.keys()):
