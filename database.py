@@ -15,6 +15,25 @@ supabase: Client = init_connection()
 
 def init_db():
     pass
+
+def check_login(username, password):
+    try:
+        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+        response = supabase.table("users").select("*").eq("username", username).execute()
+        if response.data:
+            user = response.data[0]
+            if user['password'] == hashed_pw or user['password'] == password:
+                return user 
+        return None
+    except: return None
+
+def update_password(username, new_password):
+    try:
+        hashed_pw = hashlib.sha256(new_password.encode()).hexdigest()
+        supabase.table("users").update({"password": hashed_pw}).eq("username", username).execute()
+        return True
+    except: return False
+
 def add_user(username, password, role, year, full_name="", email=""):
     try:
         exists = supabase.table("users").select("username").eq("username", username).execute()
@@ -29,102 +48,50 @@ def add_user(username, password, role, year, full_name="", email=""):
         return True
     except: return False
 
-def check_login(username, password):
-    try:
-        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-        response = supabase.table("users").select("*").eq("username", username).execute()
-        if response.data:
-            user = response.data[0]
-            if user['password'] == hashed_pw or user['password'] == password:
-                return user 
-        return None
-    except: return None
-
 def get_user_details(username):
     try:
         res = supabase.table("users").select("*").eq("username", username).execute()
         return res.data[0] if res.data else None
     except: return None
 
-def get_leaderboard():
-    try: return supabase.table("users").select("*").order("points", desc=True).limit(20).execute().data
-    except: return []
-
-def search_users(query):
-    try:
-        return supabase.table("users").select("*").or_(f"full_name.ilike.%{query}%,username.ilike.%{query}%,skills.ilike.%{query}%").execute().data
-    except: return []
-def update_avatar(username, file_bytes, file_type):
-    """
-    Uploads image to Supabase Storage Bucket and saves the URL.
-    """
-    try:
-        file_ext = file_type.split("/")[-1]
-        file_path = f"{username}_avatar.{file_ext}"
-        supabase.storage.from_("avatars").upload(
-            file_path, 
-            file_bytes, 
-            {"content-type": file_type, "upsert": "true"}
-        )
-        public_url = supabase.storage.from_("avatars").get_public_url(file_path)
-        supabase.table("users").update({"avatar": public_url}).eq("username", username).execute()
-        return True
-    except Exception as e:
-        print(f"Upload Error: {e}")
-        return False
 def get_user_avatar(username):
-    """Returns the raw avatar field (URL or Base64)"""
     try:
-        res = supabase.table("users").select("avatar").eq("username", username).execute()
-        return res.data[0]['avatar'] if res.data else None
-    except: return None
+        user = get_user_details(username)
+        return user.get('avatar', '') if user else ''
+    except: return ''
 
 def get_avatar_url(username):
-    """
-    Smart Helper: Returns a valid image URL for any user.
-    Handles: Cloud URL (New) | Base64 (Old) | Dicebear (Default)
-    """
     try:
-        raw = get_user_avatar(username)
-        if raw:
-            if "http" in str(raw): return raw
-            if len(str(raw)) > 100: return f"data:image/png;base64,{raw}"
+        user = get_user_details(username)
+        if user and user.get('avatar'):
+            avatar = user['avatar']
+            if "http" in str(avatar):
+                return avatar
+            if len(str(avatar)) > 100:
+                return f"data:image/png;base64,{avatar}"
         return f"https://api.dicebear.com/7.x/identicon/svg?seed={username}"
-    except:
-        return f"https://api.dicebear.com/7.x/identicon/svg?seed={username}"
-def get_connection_status(sender, receiver):
-    try:
-        res = supabase.table("connections").select("status").or_(
-            f"and(sender.eq.{sender},receiver.eq.{receiver}),and(sender.eq.{receiver},receiver.eq.{sender})"
-        ).execute()
-        return res.data[0]['status'] if res.data else None
-    except: return None
+    except: return f"https://api.dicebear.com/7.x/identicon/svg?seed={username}"
 
-def send_connection_request(sender, receiver):
+def get_all_users():
     try:
-        if get_connection_status(sender, receiver): return False
-        supabase.table("connections").insert({"sender": sender, "receiver": receiver, "status": "pending"}).execute()
-        return True
-    except: return False
-
-def get_pending_requests(username):
-    try:
-        res = supabase.table("connections").select("*").eq("receiver", username).eq("status", "pending").execute()
-        return res.data
+        return supabase.table("users").select("*").execute().data
     except: return []
 
-def respond_to_request(sender, receiver, action):
-    try:
-        if action == "accept":
-            supabase.table("connections").update({"status": "accepted"}).match({"sender": sender, "receiver": receiver}).execute()
-        elif action == "reject":
-            supabase.table("connections").delete().match({"sender": sender, "receiver": receiver}).execute()
-        return True
-    except: return False
+def get_leaderboard():
+    try: return supabase.table("users").select("*").order("points", desc=True).limit(100).execute().data
+    except: return []
+
+def get_full_leaderboard():
+    try: return supabase.table("users").select("*").order("points", desc=True).execute().data
+    except: return []
 
 def send_message(sender, receiver, content):
     try:
-        supabase.table("messages").insert({"sender_username": sender, "receiver_username": receiver, "content": content}).execute()
+        supabase.table("messages").insert({
+            "sender_username": sender,
+            "receiver_username": receiver,
+            "content": content
+        }).execute()
         return True
     except: return False
 
@@ -134,11 +101,107 @@ def get_chat_history(user1, user2):
             f"and(sender_username.eq.{user1},receiver_username.eq.{user2}),and(sender_username.eq.{user2},receiver_username.eq.{user1})"
         ).order("created_at", desc=False).execute().data
     except: return []
+
+def get_all_messages():
+    try:
+        return supabase.table("messages").select("*").order("created_at", desc=True).execute().data
+    except: return []
+
+def get_user_conversations(username):
+    try:
+        sent = supabase.table("messages").select("receiver").eq("sender", username).execute().data
+        received = supabase.table("messages").select("sender").eq("receiver", username).execute().data
+        users = set()
+        for m in sent:
+            if m.get('receiver'): users.add(m['receiver'])
+        for m in received:
+            if m.get('sender'): users.add(m['sender'])
+        return list(users)
+    except: return []
+
+def get_all_chatrooms():
+    try:
+        return supabase.table("chat_rooms").select("*").execute().data
+    except: return []
+
+def delete_chat_message(msg_id):
+    try:
+        supabase.table("messages").delete().eq("id", msg_id).execute()
+        return True
+    except: return False
+
+def delete_study_message(msg_id):
+    try:
+        supabase.table("study_chat").delete().eq("id", msg_id).execute()
+        return True
+    except: return False
+
+def get_all_study_messages():
+    try:
+        return supabase.table("study_chat").select("*").order("created_at", desc=True).execute().data
+    except: return []
+
+def delete_room(room_name):
+    try:
+        supabase.table("study_rooms").delete().eq("room_name", room_name).execute()
+        supabase.table("study_chat").delete().eq("room_name", room_name).execute()
+        return True
+    except: return False
+
 def get_all_rooms():
     try:
-        res = supabase.table("study_rooms").select("room_name").execute()
-        return [r['room_name'] for r in res.data] if res.data else ["☕ General Lounge"]
-    except: return ["☕ General Lounge"]
+        return supabase.table("study_rooms").select("*").execute().data
+    except: return []
+
+def create_alert(alert_text):
+    try:
+        supabase.table("alerts").insert({"message": alert_text}).execute()
+        return True
+    except: return False
+
+def get_alerts():
+    try:
+        return supabase.table("alerts").select("*").order("created_at", desc=True).execute().data
+    except: return []
+
+def delete_alert(alert_id):
+    try:
+        supabase.table("alerts").delete().eq("id", alert_id).execute()
+        return True
+    except: return False
+
+def create_notification_request(title, description, date, requested_by):
+    try:
+        supabase.table("notification_requests").insert({
+            "title": title,
+            "description": description,
+            "date": date,
+            "requested_by": requested_by,
+            "status": "pending"
+        }).execute()
+        return True
+    except: return False
+
+def get_notification_requests():
+    try:
+        return supabase.table("notification_requests").select("*").order("created_at", desc=True).execute().data
+    except: return []
+
+def approve_notification_request(req_id, title, description, date):
+    try:
+        # Update request status
+        supabase.table("notification_requests").update({"status": "approved"}).eq("id", req_id).execute()
+        # Create the alert notification
+        alert_msg = f"{title} | {description} | Date: {date}"
+        supabase.table("alerts").insert({"message": alert_msg}).execute()
+        return True
+    except: return False
+
+def reject_notification_request(req_id):
+    try:
+        supabase.table("notification_requests").update({"status": "rejected"}).eq("id", req_id).execute()
+        return True
+    except: return False
 
 def create_new_room(room_name):
     try:
@@ -165,9 +228,33 @@ def get_questions(subject_filter=None):
         return q.execute().data
     except: return []
 
-def post_question(username, subject, text):
-    try: supabase.table("forum_questions").insert({"username": username, "subject": subject, "question_text": text}).execute()
-    except: pass
+def post_question(username, subject, text, image_url=""):
+    try: 
+        data = {"username": username, "subject": subject, "question_text": text}
+        if image_url:
+            data["image_url"] = image_url
+        supabase.table("forum_questions").insert(data).execute()
+        return True
+    except Exception as e:
+        print(f"Error posting question: {e}")
+        return False
+
+def upload_doubt_image(file_bytes, file_type, username):
+    try:
+        import uuid
+        file_ext = file_type.split("/")[-1]
+        unique_name = f"doubt_{username}_{uuid.uuid4().hex[:8]}.{file_ext}"
+        
+        result = supabase.storage.from_("avatars").upload(
+            unique_name,
+            file_bytes,
+            {"content-type": file_type, "upsert": "true"}
+        )
+        public_url = supabase.storage.from_("avatars").get_public_url(unique_name)
+        return public_url
+    except Exception as e:
+        print(f"Upload Error: {e}")
+        return ""
 
 def get_answers(q_id):
     try: return supabase.table("forum_answers").select("*").eq("question_id", q_id).order("id", desc=False).execute().data
@@ -177,9 +264,27 @@ def post_answer(q_id, username, text):
     try: supabase.table("forum_answers").insert({"question_id": q_id, "username": username, "answer_text": text}).execute()
     except: pass
 
-def upvote_question(q_id):
+def upvote_question(q_id, username):
     try:
+        existing = supabase.table("question_votes").select("*").eq("question_id", q_id).eq("username", username).execute()
+        if existing.data:
+            return False
+        supabase.table("question_votes").insert({"question_id": q_id, "username": username}).execute()
         supabase.rpc("increment_upvotes", {"row_id": q_id}).execute()
+        return True
+    except: return False
+
+def get_user_votes(username):
+    try:
+        votes = supabase.table("question_votes").select("question_id").eq("username", username).execute()
+        return [v['question_id'] for v in votes.data]
+    except: return []
+
+def delete_question(q_id):
+    try:
+        supabase.table("forum_answers").delete().eq("question_id", q_id).execute()
+        supabase.table("question_votes").delete().eq("question_id", q_id).execute()
+        supabase.table("forum_questions").delete().eq("id", q_id).execute()
         return True
     except: return False
 
@@ -191,6 +296,21 @@ def mark_solved(q_id):
 def get_user_test_history(username):
     try: return supabase.table("test_results").select("*").eq("username", username).execute().data
     except: return []
+
+def save_test_result(username, subject, score, total_questions, difficulty):
+    try:
+        data = {
+            "username": username,
+            "subject": subject,
+            "score": score,
+            "total_questions": total_questions,
+            "difficulty": difficulty
+        }
+        supabase.table("test_results").insert(data).execute()
+        return True
+    except Exception as e:
+        print(f"Error saving test result: {e}")
+        return False
 
 def get_all_mentors():
     try: return supabase.table("mentors").select("*").execute().data
@@ -211,9 +331,114 @@ def delete_mentor(username):
         return True
     except: return False
 
+def add_mentor_review(mentor_username, reviewer_username, rating, review_text):
+    try:
+        existing = supabase.table("mentor_reviews").select("*").eq("mentor_username", mentor_username).eq("reviewer_username", reviewer_username).execute()
+        if existing.data:
+            return "already_reviewed"
+        data = {
+            "mentor_username": mentor_username,
+            "reviewer_username": reviewer_username,
+            "rating": rating,
+            "review_text": review_text
+        }
+        supabase.table("mentor_reviews").insert(data).execute()
+        return True
+    except: return False
+
+def has_reviewed(mentor_username, reviewer_username):
+    try:
+        existing = supabase.table("mentor_reviews").select("*").eq("mentor_username", mentor_username).eq("reviewer_username", reviewer_username).execute()
+        return len(existing.data) > 0
+    except: return False
+
+def update_mentor_review(mentor_username, reviewer_username, rating, review_text):
+    try:
+        data = {"rating": rating, "review_text": review_text}
+        supabase.table("mentor_reviews").update(data).eq("mentor_username", mentor_username).eq("reviewer_username", reviewer_username).execute()
+        return True
+    except: return False
+
+def get_mentor_reviews(mentor_username):
+    try:
+        return supabase.table("mentor_reviews").select("*").eq("mentor_username", mentor_username).execute().data
+    except: return []
+
+def get_mentor_avg_rating(mentor_username):
+    try:
+        reviews = get_mentor_reviews(mentor_username)
+        if not reviews:
+            return 0
+        total = sum(r['rating'] for r in reviews)
+        return round(total / len(reviews), 1)
+    except: return 0
+
+def update_mentor(username, skills, rate, contact, bio):
+    try:
+        data = {"skills": skills, "rate": rate, "contact": contact, "bio": bio}
+        supabase.table("mentors").update(data).eq("username", username).execute()
+        return True
+    except: return False
+
 def get_user_notes(username):
     try: return supabase.table("notes").select("*").eq("uploader", username).execute().data
     except: return []
+
+def get_pending_requests(username):
+    try:
+        return supabase.table("connections").select("*").eq("receiver", username).eq("status", "pending").execute().data
+    except: return []
+
+def send_connection_request(sender, receiver):
+    try:
+        supabase.table("connections").insert({
+            "sender": sender,
+            "receiver": receiver,
+            "status": "pending"
+        }).execute()
+        return True
+    except: return False
+
+def accept_connection(sender, receiver):
+    try:
+        supabase.table("connections").update({"status": "accepted"}).eq("sender", sender).eq("receiver", receiver).execute()
+        return True
+    except: return False
+
+def reject_connection(sender, receiver):
+    try:
+        supabase.table("connections").delete().eq("sender", sender).eq("receiver", receiver).execute()
+        return True
+    except: return False
+
+def get_connection_status(user1, user2):
+    try:
+        result = supabase.table("connections").select("status").eq("sender", user1).eq("receiver", user2).execute()
+        if result.data:
+            return result.data[0].get("status")
+        result2 = supabase.table("connections").select("status").eq("sender", user2).eq("receiver", user1).execute()
+        if result2.data:
+            return result2.data[0].get("status")
+        return None
+    except: return None
+
+def delete_user_data(username):
+    try:
+        supabase.table("connections").delete().eq("sender", username).execute()
+        supabase.table("connections").delete().eq("receiver", username).execute()
+        supabase.table("messages").delete().eq("sender_username", username).execute()
+        supabase.table("messages").delete().eq("receiver_username", username).execute()
+        supabase.table("study_chats").delete().eq("username", username).execute()
+        supabase.table("forum_answers").delete().eq("username", username).execute()
+        supabase.table("forum_questions").delete().eq("username", username).execute()
+        supabase.table("test_results").delete().eq("username", username).execute()
+        supabase.table("notes").delete().eq("uploader", username).execute()
+        supabase.table("mentors").delete().eq("username", username).execute()
+        supabase.table("users").delete().eq("username", username).execute()
+        return True
+    except Exception as e:
+        print(f"Delete Error: {e}")
+        return False
 
 def get_verified_skills(username):
     try:
@@ -222,9 +447,67 @@ def get_verified_skills(username):
         
         best_scores = {}
         for r in results:
-            sub, score = r['subject'], r['score']
+            sub, score = r['subject'], r['subject']
             if sub not in best_scores or score > best_scores[sub]:
                 best_scores[sub] = score
         
         return [sub for sub, score in best_scores.items() if score >= 8]
     except: return []
+
+def rate_note(note_id, rating):
+    try:
+        note = supabase.table("notes").select("rating_count, total_rating").eq("id", note_id).execute()
+        if note.data:
+            current_count = note.data[0].get("rating_count", 0) or 0
+            current_total = note.data[0].get("total_rating", 0) or 0
+            new_count = current_count + 1
+            new_total = current_total + rating
+            new_avg = round(new_total / new_count, 1)
+            
+            is_verified = True if new_count >= 3 and new_avg >= 4.0 else False
+            
+            supabase.table("notes").update({
+                "rating_count": new_count,
+                "total_rating": new_total,
+                "avg_rating": new_avg,
+                "is_verified": is_verified
+            }).eq("id", note_id).execute()
+            return True
+        return False
+    except Exception as e:
+        print(f"Rate Note Error: {e}")
+        return False
+
+def add_note_review(note_id, username, review):
+    try:
+        supabase.table("note_reviews").insert({
+            "note_id": note_id,
+            "username": username,
+            "review": review
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"Add Review Error: {e}")
+        return False
+
+def get_note_reviews(note_id):
+    try:
+        return supabase.table("note_reviews").select("*").eq("note_id", note_id).order("id", desc=True).execute().data
+    except: return []
+
+def get_notes_with_filters(subject=None, min_rating=0, note_type=None):
+    try:
+        query = supabase.table("notes").select("*")
+        if subject and subject != "All":
+            query = query.ilike("subject", f"%{subject}%")
+        if note_type:
+            query = query.eq("note_type", note_type)
+        results = query.execute().data
+        
+        if min_rating > 0:
+            results = [r for r in results if (r.get("avg_rating") or 0) >= min_rating]
+        
+        return results
+    except Exception as e:
+        print(f"Filter Error: {e}")
+        return []

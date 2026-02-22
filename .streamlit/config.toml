@@ -1,6 +1,11 @@
+[server]
+port = 8501
+
+[client]
+showSidebarNavigation = true
+
 [theme]
-primaryColor = "#8B0000"
+primaryColor = "#667eea"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F5F5DC"
-textColor = "#262730"
-font = "sans serif"
+secondaryBackgroundColor = "#F8F9FA"
+textColor = "#1E293B"
