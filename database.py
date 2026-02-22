@@ -133,6 +133,13 @@ def delete_chat_message(msg_id):
 def delete_message(msg_id):
     return delete_chat_message(msg_id)
 
+def clear_chat(user1, user2):
+    try:
+        supabase.table("messages").delete().eq("sender_username", user1).eq("receiver_username", user2).execute()
+        supabase.table("messages").delete().eq("sender_username", user2).eq("receiver_username", user1).execute()
+        return True
+    except: return False
+
 def delete_study_message(msg_id):
     try:
         supabase.table("study_chat").delete().eq("id", msg_id).execute()
