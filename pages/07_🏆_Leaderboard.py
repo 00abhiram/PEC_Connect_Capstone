@@ -1,10 +1,8 @@
 import streamlit as st
 import database as db
-from functools import lru_cache
 
 db.init_db()
 
-@lru_cache(maxsize=1)
 def get_cached_leaderboard():
     return db.get_full_leaderboard()
 
@@ -203,7 +201,6 @@ st.markdown("""
 col_refresh, col_spacer = st.columns([1, 10])
 with col_refresh:
     if st.button("🔄 Refresh", use_container_width=True):
-        get_cached_leaderboard.cache_clear()
         st.rerun()
 
 if "leaderboard_filter" not in st.session_state:

@@ -82,8 +82,61 @@ def get_leaderboard():
     except: return []
 
 def get_full_leaderboard():
-    try: return supabase.table("users").select("*").order("points", desc=True).execute().data
-    except: return []
+    try:
+        users = supabase.table("users").select("username", "points", "full_name", "year").order("points", desc=True).execute().data or []
+        
+        if not users:
+            return []
+        
+        result = []
+        for user in users:
+            username = user.get('username', '')
+            if not username:
+                continue
+            
+            test_results = []
+            try:
+                test_results = supabase.table("test_results").select("score", "total_questions").eq("username", username).execute().data or []
+            except:
+                pass
+            
+            user['tests_taken'] = len(test_results)
+            test_points = 0
+            for t in test_results:
+                try:
+                    if t.get('total_questions', 0) and t.get('total_questions', 0) > 0:
+                        test_points += int((t.get('score', 0) or 0) / t['total_questions'] * 100)
+                except:
+                    pass
+            user['test_points'] = test_points
+            
+            answers = []
+            try:
+                answers = supabase.table("forum_answers").select("id").eq("username", username).execute().data or []
+            except:
+                pass
+            user['answers_given'] = len(answers)
+            user['forum_points'] = len(answers) * 10
+            
+            mentor = []
+            try:
+                mentor = supabase.table("mentors").select("username").eq("username", username).execute().data or []
+            except:
+                pass
+            user['is_mentor'] = len(mentor) > 0
+            user['mentor_points'] = 100 if user['is_mentor'] else 0
+            
+            base_points = user.get('points', 0) or 0
+            total_points = base_points + test_points + user['forum_points'] + user['mentor_points']
+            user['points'] = total_points
+            
+            result.append(user)
+        
+        result.sort(key=lambda x: x.get('points', 0), reverse=True)
+        return result
+    except Exception as e:
+        print(f"Leaderboard error: {e}")
+        return []
 
 def send_message(sender, receiver, content):
     try:
