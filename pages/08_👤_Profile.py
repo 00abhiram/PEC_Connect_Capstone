@@ -316,25 +316,33 @@ if is_admin:
     st.sidebar.markdown("---")
     st.sidebar.markdown("🛡️ **Admin Controls**")
     
-    admin_view_user = st.sidebar.text_input("View User Profile", placeholder="Enter username", key="admin_view_user_input")
-    if admin_view_user:
-        st.session_state["viewing_user"] = admin_view_user
-        st.session_state["admin_view_user_input"] = ""
-        st.rerun()
+    col_search_btn, col_search_input = st.sidebar.columns([1, 2])
+    with col_search_input:
+        admin_view_user = st.text_input("", placeholder="Enter username", key="admin_view_user_input")
+    with col_search_btn:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔍 Search", key="admin_search_btn", use_container_width=True):
+            if admin_view_user:
+                st.session_state["viewing_user"] = admin_view_user
+                st.rerun()
     
-    if st.sidebar.button("🗑️ Delete This Account"):
-        if target_user != admin_user:
-            db.delete_user(target_user)
-            st.sidebar.success(f"Account {target_user} deleted!")
-            st.session_state["viewing_user"] = current_user
-            st.rerun()
-        else:
-            st.sidebar.error("Cannot delete admin account!")
-    
-    if st.sidebar.button("⚠️ Send Warning"):
-        warning_msg = "Your account has been flagged for violating community guidelines. Contact admin."
-        db.send_warning(target_user, warning_msg)
-        st.sidebar.warning(f"Warning sent to {target_user}!")
+    if target_user != current_user:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown(f"**Viewing:** @{target_user}")
+        
+        if st.sidebar.button("🗑️ Delete This Account", type="primary"):
+            if target_user != admin_user:
+                db.delete_user(target_user)
+                st.sidebar.success(f"Account {target_user} deleted!")
+                st.session_state["viewing_user"] = current_user
+                st.rerun()
+            else:
+                st.sidebar.error("Cannot delete admin account!")
+        
+        if st.sidebar.button("⚠️ Send Warning"):
+            warning_msg = "Your account has been flagged for violating community guidelines. Contact admin."
+            db.send_warning(target_user, warning_msg)
+            st.sidebar.warning(f"Warning sent to {target_user}!")
 
 is_me = (current_user == target_user)
 user_data = db.get_user_details(target_user)
