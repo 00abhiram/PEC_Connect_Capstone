@@ -316,9 +316,10 @@ if is_admin:
     st.sidebar.markdown("---")
     st.sidebar.markdown("🛡️ **Admin Controls**")
     
-    admin_view_user = st.sidebar.text_input("View User Profile", placeholder="Enter username")
+    admin_view_user = st.sidebar.text_input("View User Profile", placeholder="Enter username", key="admin_view_user_input")
     if admin_view_user:
         st.session_state["viewing_user"] = admin_view_user
+        st.session_state["admin_view_user_input"] = ""
         st.rerun()
     
     if st.sidebar.button("🗑️ Delete This Account"):

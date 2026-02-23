@@ -432,6 +432,15 @@ def get_connection_status(user1, user2):
         return None
     except: return None
 
+def delete_user(username):
+    return delete_user_data(username)
+
+def send_warning(username, message):
+    try:
+        supabase.table("warnings").insert({"username": username, "message": message}).execute()
+        return True
+    except: return False
+
 def delete_user_data(username):
     try:
         supabase.table("connections").delete().eq("sender", username).execute()
